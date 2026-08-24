@@ -1,0 +1,508 @@
+/* ═══ App shell — KMUTT reference layout ═══
+   Desktop: fixed 280px sidebar, no global top bar (each page owns a sticky
+   glass header). Mobile: top bar + sidebar as an overlay drawer. */
+
+.layout {
+  height: 100%;
+  display: flex;
+}
+
+/* ─── Mobile top bar ─── */
+.mobile-topbar {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  z-index: 300;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.topbar-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--accent-deep);
+}
+
+.topbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--secondary);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.topbar-btn:hover { background: var(--bg-hover); }
+.topbar-btn:active { transform: scale(0.95); }
+.drawer-close { display: none; }
+
+/* ─── Sidebar ─── */
+.sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 0 0;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+/* Brand */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+  margin-bottom: 28px;
+}
+
+/* White tile with the orange KMUTT mark, matching the reference header */
+.brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  color: var(--kmutt-red);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-name {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 22px;
+  letter-spacing: -0.01em;
+  color: var(--accent-container);
+  white-space: nowrap;
+}
+
+.brand-sub {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+
+/* New Chat pill */
+.sidebar-newchat {
+  padding: 0 20px;
+  margin-bottom: 24px;
+}
+
+.new-chat-pill {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: var(--radius-full);
+  background: var(--accent-container);
+  color: var(--on-accent);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: var(--shadow-sm);
+  transition: opacity 0.15s, box-shadow 0.15s;
+}
+
+.new-chat-pill:hover {
+  opacity: 0.92;
+  box-shadow: var(--shadow-accent);
+}
+
+/* Navigation block — fixed height, never scrolls */
+.sidebar-nav {
+  flex-shrink: 0;
+  padding-bottom: 8px;
+}
+
+.sidebar-label {
+  padding: 0 24px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+/* Sits directly under the nav block, not pushed down */
+.recent-label {
+  margin-top: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.all-recent {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--tertiary);
+  transition: color 0.15s;
+}
+
+.all-recent:hover { color: var(--accent-container); }
+
+/* Nav items */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% - 16px);
+  margin: 0 8px 4px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: left;
+  transition: all 0.2s ease-in-out;
+}
+
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: var(--accent-container);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-item.active:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Recent chats — the ONLY scrollable region in the sidebar */
+.recent-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px 8px;
+}
+
+.recent-empty {
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.recent-item:hover { background: var(--bg-hover); }
+
+.recent-item.active {
+  background: var(--accent-light);
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+
+.recent-icon {
+  display: flex;
+  color: var(--tertiary);
+  flex-shrink: 0;
+}
+
+.recent-item.active .recent-icon { color: var(--accent); }
+
+.recent-running {
+  width: 8px;
+  height: 8px;
+  margin: 0 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: kmuttPulse 1.5s ease-in-out infinite;
+}
+
+.recent-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: var(--text-tertiary);
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+
+.recent-item:hover .recent-delete { opacity: 1; }
+.recent-delete:hover { color: var(--error); background: var(--error-light); }
+
+/* Footer */
+.sidebar-footer {
+  padding: 12px 0 16px;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-footer .nav-item { margin-bottom: 2px; }
+
+/* ─── Main area ─── */
+.main-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.page-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 18px 32px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--border);
+  z-index: 20;
+}
+
+.page-topbar-title {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 32px;
+  color: var(--text-primary);
+}
+
+.page-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ─── Status tags (swarm / realtime / agent group) ─── */
+.logo-swarm-tag {
+  font-size: 10px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent-container), var(--accent-deep));
+  color: var(--on-accent);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  animation: swarmGlow 2s ease-in-out infinite;
+}
+
+@keyframes swarmGlow {
+  0%, 100% { box-shadow: 0 0 4px rgba(221, 112, 4, 0.3); }
+  50% { box-shadow: 0 0 12px rgba(221, 112, 4, 0.6); }
+}
+
+.logo-realtime-tag {
+  font-size: 10px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--tertiary-container), var(--tertiary));
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  animation: realtimeGlow 2s ease-in-out infinite;
+}
+
+@keyframes realtimeGlow {
+  0%, 100% { box-shadow: 0 0 4px rgba(0, 172, 244, 0.3); }
+  50% { box-shadow: 0 0 12px rgba(0, 172, 244, 0.6); }
+}
+
+.logo-config-tag {
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--secondary-light);
+  color: var(--secondary);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.3px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logo-config-tag.clickable {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.logo-config-tag.clickable:hover {
+  background: var(--accent-light);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.agent-group-selector {
+  position: relative;
+  display: inline-flex;
+}
+
+.agent-dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
+.agent-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  overflow: hidden;
+  animation: agentDropdownIn 0.15s ease-out;
+}
+
+@keyframes agentDropdownIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.agent-dropdown-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-tertiary);
+  padding: 8px 12px 4px;
+}
+
+.agent-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.agent-dropdown-item:hover { background: var(--bg-hover); }
+.agent-dropdown-item.active { background: var(--accent-light); }
+
+.agent-dropdown-item.active .agent-dropdown-name {
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+
+.agent-dropdown-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.agent-dropdown-meta {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .layout { flex-direction: column; }
+
+  .mobile-topbar { display: flex; }
+  .drawer-close { display: flex; margin-left: auto; }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 400;
+    width: 300px;
+    max-width: 85vw;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease-in-out;
+    box-shadow: var(--shadow-lg);
+    padding-top: 20px;
+  }
+
+  .sidebar.drawer-open { transform: translateX(0); }
+
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(58, 46, 39, 0.45);
+    z-index: 350;
+  }
+
+  .main-container {
+    padding-top: 64px;
+    height: 100%;
+  }
+
+  .page-topbar {
+    padding: 12px 16px;
+  }
+
+  .page-topbar-title { font-size: 19px; line-height: 26px; }
+}

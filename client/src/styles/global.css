@@ -1,0 +1,298 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   KMUTT Design System — "Academic Tech"
+   Deep Burnt Orange / Sienna / Warm Neutral Grey
+   Derived from stitch_kmutt_ai_assistant/academic_tech_intelligence
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* ─── Surfaces (tiered warm neutrals) ─── */
+  --bg-primary: #fff8f5;    /* app canvas */
+  --bg-secondary: #fff1ea;  /* sidebars, secondary panels */
+  --bg-tertiary: #ffeadf;   /* cards, input fills */
+  --bg-hover: #f3dfd4;      /* hover states */
+  --bg-elevated: #ffffff;   /* cards lifted off the canvas */
+  --bg-dim: #ead6cb;        /* recessed areas, wells */
+
+  /* ─── Text ─── */
+  --text-primary: #241913;
+  --text-secondary: #564336;
+  --text-tertiary: #8a7264;
+  --text-inverse: #ffede4;
+
+  /* ─── Borders ─── */
+  --border: #ddc1b0;
+  --border-strong: #8a7264;
+
+  /* Official KMUTT logo orange — reserved for the logo mark itself, which is
+     redder than the UI's burnt-orange accent. */
+  --kmutt-red: #e8410e;
+
+  /* ─── Primary: KMUTT Deep Burnt Orange ─── */
+  --accent: #dd7004;
+  --accent-light: #ffdcc6;
+  --accent-hover: #b85a00;
+  --accent-deep: #964900;
+  --accent-container: #f68320;
+  --on-accent: #ffffff;
+
+  /* ─── Secondary: Earthbound Sienna ─── */
+  --secondary: #85522c;
+  --secondary-light: #ffba8c;
+  --secondary-surface: #fff1ea;
+  --on-secondary: #ffffff;
+
+  /* ─── Tertiary: Technical Cyan (citations, retrieval, sources) ─── */
+  --tertiary: #006591;
+  --tertiary-light: #c9e6ff;
+  --tertiary-container: #00acf4;
+
+  /* ─── Semantic feedback (muted so orange stays focal) ─── */
+  --success: #2e7d32;
+  --success-light: #e3f2e4;
+  --warning: #f9a825;
+  --warning-light: #fff4d6;
+  --error: #ba1a1a;
+  --error-light: #ffdad6;
+
+  /* ─── Elevation: warm-tinted ambient shadows ─── */
+  --shadow-sm: 0 1px 2px rgba(90, 60, 40, 0.10), 0 1px 3px rgba(90, 60, 40, 0.06);
+  --shadow-md: 0 2px 6px rgba(90, 60, 40, 0.10), 0 4px 12px rgba(90, 60, 40, 0.08);
+  --shadow-lg: 0 4px 12px rgba(90, 60, 40, 0.10), 0 12px 32px rgba(90, 60, 40, 0.12);
+  --shadow-accent: 0 4px 16px rgba(221, 112, 4, 0.20);
+
+  /* ─── Shape: "Soft-Modern" ─── */
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* ─── Typography ─── */
+  --font-sans: 'Inter', 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Roboto Mono', 'Fira Code', monospace;
+
+  /* ─── Layout ─── */
+  --sidebar-width: 280px;
+  --header-height: 56px;
+  --container-max: 1280px;
+  --gutter: 24px;
+
+  /* ─── Glassmorphism (sticky headers, nav) ─── */
+  --glass-bg: rgba(255, 248, 245, 0.80);
+  --glass-blur: blur(20px);
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-light);
+  color: var(--accent-deep);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+button {
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-size: 14px;
+  color: inherit;
+}
+
+input, textarea, select {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+textarea {
+  resize: vertical;
+}
+
+code, pre {
+  font-family: var(--font-mono);
+}
+
+/* Recharts SVG text — ensure Thai glyphs render correctly */
+.recharts-wrapper text,
+.recharts-wrapper tspan,
+.recharts-text,
+.recharts-cartesian-axis-tick-value,
+.recharts-legend-item-text,
+.recharts-tooltip-label,
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-value,
+.recharts-label {
+  font-family: var(--font-sans) !important;
+}
+
+pre {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* ═══ Utility: Buttons ═══ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: all 0.15s;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+  box-shadow: var(--shadow-accent);
+}
+/* Secondary: transparent with a sienna border, per the KMUTT spec */
+.btn-secondary {
+  background: transparent;
+  color: var(--secondary);
+  border: 1px solid var(--secondary);
+}
+.btn-secondary:hover {
+  background: var(--secondary-light);
+  border-color: var(--secondary);
+  color: var(--text-primary);
+}
+.btn-ghost {
+  color: var(--text-secondary);
+}
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.btn-danger {
+  color: var(--error);
+}
+.btn-danger:hover {
+  background: var(--error-light);
+}
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ═══ Utility: Citation chip (retrieval / knowledge-base sources) ═══ */
+.chip-citation {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--tertiary-light);
+  color: var(--tertiary);
+  border-radius: var(--radius-full);
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.chip-citation:hover {
+  background: var(--tertiary-container);
+  color: #ffffff;
+}
+
+/* ═══ Utility: Glass surface ═══ */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+/* ═══ Loading pulse — primary orange, per the KMUTT spec ═══ */
+@keyframes kmuttPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.pulse-accent {
+  animation: kmuttPulse 1.4s ease-in-out infinite;
+  color: var(--accent);
+}
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 260px;
+    --header-height: 48px;
+    --gutter: 16px;
+  }
+
+  .btn {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .btn-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  input, textarea, select {
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+}

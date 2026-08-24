@@ -1,0 +1,34 @@
+# Explicit project name. Without this, Compose derives the project from the
+# folder name ("tiger_cowork-main") — which is IDENTICAL to the prototype at
+# D:\tiger_cowork-main. That would make this stack share the prototype's
+# volumes (tiger_cowork-main_tiger-data) and treat its container as an orphan.
+# Naming the project keeps the two completely isolated.
+name: kmutt-cowork
+
+services:
+  kmutt-cowork:
+    build: .
+    # container_name intentionally omitted so Docker auto-generates a unique
+    # name per project (e.g. "kmutt-cowork-kmutt-cowork-1") and re-runs or
+    # parallel instances never collide on the name.
+    ports:
+      # Host:Container — 3001 on the host (the prototype uses 8080).
+      - "3001:3001"
+    env_file:
+      - .env
+    volumes:
+      - tiger-data:/app/data           # JSON stores incl. the knowledge registry
+      - tiger-uploads:/app/uploads     # chat attachments
+      - tiger-knowledge:/app/knowledge # Knowledge Base source files
+    restart: unless-stopped
+
+volumes:
+  # Prefixed with the project name (kmutt-cowork_*), so these stay separate
+  # from the prototype's tiger_cowork-main_* volumes.
+  tiger-data:
+  tiger-uploads:
+  # Without this, Knowledge Base PDFs live in the container's writable layer
+  # and are destroyed on every rebuild. Pinecone would keep the vectors and
+  # the registry would keep the entry, but re-indexing would fail with
+  # "Source file is no longer in the workspace".
+  tiger-knowledge:
