@@ -428,6 +428,15 @@
   transition: all 0.15s;
 }
 
+/* The toolbar buttons share the anchor styling above; reset button chrome. */
+button.canvas-dl-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
 .canvas-dl-btn:hover {
   background: var(--accent-light);
   color: var(--accent);

@@ -350,10 +350,10 @@ export default function FilesPage() {
           {richPreview ? (
             richPreview.type === "image" && selectedFile ? (
               <div className="file-preview rich-preview" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <img src={sandboxUrl(selectedFile, true)} alt={selectedFile} style={{ maxWidth: "100%", maxHeight: "100%" }} />
+                <img src={sandboxUrl(selectedFile)} alt={selectedFile} style={{ maxWidth: "100%", maxHeight: "100%" }} />
               </div>
             ) : richPreview.type === "html" && selectedFile ? (
-              <iframe src={sandboxUrl(selectedFile, true)} className="file-preview" style={{ border: "none", width: "100%", flex: 1, minHeight: 500 }} title={selectedFile} />
+              <iframe src={sandboxUrl(selectedFile)} className="file-preview" style={{ border: "none", width: "100%", flex: 1, minHeight: 500 }} title={selectedFile} />
             ) : richPreview.type === "video" && selectedFile ? (
               <div className="file-preview rich-preview" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <video src={sandboxUrl(selectedFile)} controls style={{ maxWidth: "100%", maxHeight: "100%" }} />

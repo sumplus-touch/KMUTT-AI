@@ -203,7 +203,7 @@ function OutputCanvas({ files }: { files: string[] }) {
           {images.map((f) => (
             <div key={f} className="canvas-image-wrap">
               <img
-                src={sandboxUrl(f, true)}
+                src={sandboxUrl(f)}
                 alt={f}
                 className={`canvas-image ${expanded === f ? "expanded" : ""}`}
                 onClick={() => setExpanded(expanded === f ? null : f)}
@@ -228,7 +228,7 @@ function OutputCanvas({ files }: { files: string[] }) {
             </a>
           </div>
           <div className="canvas-react-body">
-            <ReactComponentRenderer src={sandboxUrl(f, true)} />
+            <ReactComponentRenderer src={sandboxUrl(f)} />
           </div>
         </div>
       ))}
@@ -246,7 +246,7 @@ function OutputCanvas({ files }: { files: string[] }) {
               </a>
             </div>
           </div>
-          <iframe src={sandboxUrl(f, true)} className="canvas-html-iframe" title={f} />
+          <iframe src={sandboxUrl(f)} className="canvas-html-iframe" title={f} />
         </div>
       ))}
 

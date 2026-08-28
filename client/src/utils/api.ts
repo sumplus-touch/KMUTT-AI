@@ -31,12 +31,25 @@ async function request(path: string, options?: RequestInit) {
   return res.json();
 }
 
-// Build a sandbox URL with the access token for file serving
-export function sandboxUrl(filePath: string, cacheBust = false): string {
+/**
+ * Build a sandbox URL with the access token for file serving.
+ *
+ * The URL is deliberately stable across renders. It used to carry a
+ * Date.now() cache-buster, which gave every <iframe>/<img> a brand new src on
+ * every re-render — and ChatPage re-renders on each streaming chunk and status
+ * update, so previews reloaded continuously while an agent worked and threw
+ * away the reader's scroll position every time. Freshness now comes from the
+ * server, which serves /sandbox with `Cache-Control: no-cache` so the browser
+ * revalidates on its own.
+ *
+ * Pass `version` only to force a reload on purpose (e.g. a manual refresh
+ * button); the same value must be reused across renders to stay stable.
+ */
+export function sandboxUrl(filePath: string, version?: number | string): string {
   const token = getAccessToken();
   const params = new URLSearchParams();
   if (token) params.set("token", token);
-  if (cacheBust) params.set("t", Date.now().toString());
+  if (version) params.set("v", String(version));
   const qs = params.toString();
   // Encode each segment: knowledge-base files are named in Thai and many carry
   // spaces, so a raw path breaks the URL (and a "#" in a name would truncate it).
