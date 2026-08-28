@@ -35,6 +35,7 @@
 
   /* ─── Primary: KMUTT Deep Burnt Orange ─── */
   --accent: #dd7004;
+  --accent-rgb: 221, 112, 4;  /* for rgba() tints */
   --accent-light: #ffdcc6;
   --accent-hover: #b85a00;
   --accent-deep: #964900;

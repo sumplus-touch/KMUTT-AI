@@ -866,7 +866,7 @@ img.save('${tmpOut}', 'JPEG', quality=80)
           }
         }
 
-        const kbSources: Array<{ ref?: number; title: string; fileName?: string; category?: string; page?: number; score: number; hits: number; excerpt: string }> = [];
+        const kbSources: Array<{ ref?: number; docId?: string; title: string; fileName?: string; category?: string; page?: number; score: number; hits: number; excerpt: string }> = [];
         const result = await callTigerBotWithTools(
           chatMessages,
           await buildSystemPrompt(),
@@ -927,6 +927,7 @@ img.save('${tmpOut}', 'JPEG', quality=80)
                 } else {
                   kbSources.push({
                     ref: hit.ref,
+                    docId: hit.docId,
                     title: hit.title || hit.source,
                     fileName: hit.source,
                     category: hit.category,

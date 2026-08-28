@@ -1,0 +1,136 @@
+.authgate-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 15% 10%, var(--accent-light) 0%, transparent 45%),
+    radial-gradient(circle at 85% 90%, var(--tertiary-light) 0%, transparent 40%),
+    var(--bg-primary);
+}
+
+.authgate-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+.authgate-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  color: var(--kmutt-red);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+.authgate-mark-loading {
+  animation: authgate-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes authgate-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.authgate-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 380px;
+  padding: 40px 36px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+
+.authgate-card h1 {
+  margin: 18px 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.authgate-sub {
+  margin: 0 0 24px;
+  font-size: 13.5px;
+  color: var(--text-tertiary);
+}
+
+.authgate-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 14.5px;
+  font-family: var(--font-sans);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.authgate-input::placeholder { color: var(--text-tertiary); }
+
+.authgate-input:focus {
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+}
+
+.authgate-error {
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  background: var(--error-light);
+  color: var(--error);
+  font-size: 13px;
+  text-align: left;
+}
+
+.authgate-submit {
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.authgate-submit:hover:not(:disabled) {
+  background: var(--accent-hover);
+  box-shadow: var(--shadow-accent);
+}
+
+.authgate-submit:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.authgate-footer {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  text-align: center;
+}

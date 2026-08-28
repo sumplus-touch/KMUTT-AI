@@ -176,7 +176,7 @@
 .drop-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(var(--accent-rgb, 66, 133, 244), 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
   border: 2px dashed var(--accent);
   border-radius: var(--radius-lg);
   display: flex;

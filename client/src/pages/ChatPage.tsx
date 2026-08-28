@@ -8,6 +8,7 @@ import { useSocket } from "../hooks/useSocket";
 import { Icon } from "../components/Layout";
 import { useChatNav } from "../components/ChatNavContext";
 import ReactComponentRenderer from "../components/ReactComponentRenderer";
+import { SourceViewer, useResolvedDocs } from "../components/SourceViewer";
 import "./ChatPage.css";
 
 /** Assistant avatar glyph — matches the reference's robot mark. */
@@ -29,6 +30,8 @@ interface AttachedFile {
 interface KbSource {
   /** Inline citation number used in the answer text ([1], [2] …). */
   ref?: number;
+  /** Resolves the citation back to its document so it can be opened. */
+  docId?: string;
   title: string;
   fileName?: string;
   category?: string;
@@ -84,9 +87,18 @@ function getFileExt(name: string): string {
  * Mirrors NotebookLM: a compact list of the sources the retrieval step
  * actually used, expandable to show the matched passage.
  */
-function SourceBox({ sources }: { sources: KbSource[] }) {
-  const [open, setOpen] = useState<number | null>(null);
+function SourceBox({
+  sources,
+  docs,
+  onOpen,
+}: {
+  sources: KbSource[];
+  docs: ReturnType<typeof useResolvedDocs>;
+  onOpen: (src: KbSource) => void;
+}) {
+  const [openRef, setOpenRef] = useState<number | null>(null);
   if (!sources || sources.length === 0) return null;
+
   return (
     <div className="source-box">
       <div className="source-box-head">
@@ -94,30 +106,159 @@ function SourceBox({ sources }: { sources: KbSource[] }) {
           <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
         </svg>
         {sources.length} source{sources.length > 1 ? "s" : ""}
+        <span className="source-box-hint">click to open the document</span>
       </div>
+
       <ol className="source-list">
-        {sources.map((src, i) => (
-          <li key={i} className={`source-item ${open === i ? "open" : ""}`}>
-            <button className="source-row" onClick={() => setOpen(open === i ? null : i)}>
-              <span className="source-num">{src.ref ?? i + 1}</span>
-              <span className="source-title" title={src.fileName || src.title}>{src.title}</span>
-              {typeof src.page === "number" && <span className="source-page">p.{src.page}</span>}
-              <span className="source-score">{Math.round((src.score || 0) * 100)}%</span>
-            </button>
-            {open === i && (
-              <div className="source-detail">
-                {src.fileName && (
-                  <div className="source-file">
-                    {src.fileName}{typeof src.page === "number" ? ` — page ${src.page}` : ""}
-                  </div>
-                )}
-                <p className="source-excerpt">{src.excerpt}</p>
+        {sources.map((src, i) => {
+          const ref = src.ref ?? i + 1;
+          const doc = src.docId ? docs?.get(src.docId) : undefined;
+          const unavailable = doc?.fileMissing ?? false;
+          const expanded = openRef === ref;
+
+          return (
+            <li key={ref} className={`source-item ${expanded ? "open" : ""}`}>
+              <div className="source-row">
+                {/* Opening the document is the primary action - expanding the
+                    excerpt is secondary, so the chevron is a separate hit area. */}
+                <button
+                  className="source-main"
+                  onClick={() => onOpen(src)}
+                  title={unavailable ? "Source file not on this server" : `Open ${src.fileName ?? src.title}`}
+                >
+                  <span className="source-num">{ref}</span>
+                  <span className="source-ident">
+                    <span className="source-title">{src.title}</span>
+                    {/* Many documents carry a code-like title, so the file name
+                        is shown as well - it is the identifier readers recognise. */}
+                    {src.fileName && src.fileName !== src.title && (
+                      <span className="source-sub">{src.fileName}</span>
+                    )}
+                  </span>
+                  {typeof src.page === "number" && <span className="source-page">p.{src.page}</span>}
+                  {unavailable && <span className="source-warn" title="File not on this server">!</span>}
+                  <span className="source-score">{Math.round((src.score || 0) * 100)}%</span>
+                </button>
+                <button
+                  className={`source-toggle ${expanded ? "open" : ""}`}
+                  onClick={() => setOpenRef(expanded ? null : ref)}
+                  aria-label={expanded ? "Hide passage" : "Show passage"}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M7 10l5 5 5-5z" />
+                  </svg>
+                </button>
               </div>
-            )}
-          </li>
-        ))}
+
+              {expanded && (
+                <div className="source-detail">
+                  {src.fileName && (
+                    <div className="source-file">
+                      {src.fileName}{typeof src.page === "number" ? ` - page ${src.page}` : ""}
+                    </div>
+                  )}
+                  <p className="source-excerpt">{src.excerpt}</p>
+                  <button className="source-open-link" onClick={() => onOpen(src)}>
+                    Open the document {typeof src.page === "number" ? `at page ${src.page}` : ""} &rarr;
+                  </button>
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ol>
     </div>
+  );
+}
+
+/**
+ * Turn the inline [1] [2] markers into clickable chips.
+ *
+ * The markers are rewritten to <cite> so rehypeRaw hands them to a component
+ * override; only numbers that match a real source are touched, and code spans
+ * are left alone so a Python list index never becomes a citation.
+ */
+function linkifyCitations(body: string, refs: Set<number>): string {
+  if (refs.size === 0) return body;
+  const parts = body.split(/(```[^]*?```|`[^`\n]*`)/g);
+  return parts
+    .map((part, i) =>
+      i % 2 === 1
+        ? part
+        : part.replace(/\[(\d{1,2})\]/g, (whole, digits) =>
+            refs.has(Number(digits)) ? `<cite class="cite-chip">${digits}</cite>` : whole
+          )
+    )
+    .join("");
+}
+
+/**
+ * One assistant reply: the prose, its citations, and the document viewer they
+ * share. Keeping the viewer here means an inline [2] and the row numbered 2
+ * open the same document at the same page.
+ */
+function AssistantMessage({
+  content,
+  sources,
+  onWebSearch,
+  webSearchDisabled,
+}: {
+  content: string;
+  sources?: KbSource[];
+  onWebSearch: () => void;
+  webSearchDisabled: boolean;
+}) {
+  const [viewing, setViewing] = useState<KbSource | null>(null);
+  const docs = useResolvedDocs();
+  const miss = parseNoKbMatch(content);
+  const list = sources ?? [];
+  const byRef = new Map(list.map((s, i) => [s.ref ?? i + 1, s]));
+  const body = linkifyCitations(miss.body, new Set(byRef.keys()));
+
+  return (
+    <>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw]}
+        components={{
+          cite: ({ children }: any) => {
+            const n = Number(String(children).trim());
+            const src = byRef.get(n);
+            if (!src) return <span>[{children}]</span>;
+            return (
+              <button
+                className="cite-chip"
+                onClick={() => setViewing(src)}
+                title={`${src.title}${typeof src.page === "number" ? ` - page ${src.page}` : ""}`}
+              >
+                {n}
+              </button>
+            );
+          },
+        }}
+      >
+        {body}
+      </ReactMarkdown>
+
+      {list.length > 0 && <SourceBox sources={list} docs={docs} onOpen={setViewing} />}
+
+      {miss.noMatch && (
+        <button className="web-fallback-btn" onClick={onWebSearch} disabled={webSearchDisabled}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+          </svg>
+          Search the web instead
+        </button>
+      )}
+
+      {viewing && (
+        <SourceViewer
+          source={viewing}
+          resolved={viewing.docId ? docs?.get(viewing.docId) : undefined}
+          onClose={() => setViewing(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -878,29 +1019,12 @@ export default function ChatPage() {
                 {msg.role !== "user" && <div className="message-avatar"><BotGlyph /></div>}
                 <div className="message-content">
                   {msg.role === "assistant" ? (
-                    (() => {
-                      const miss = parseNoKbMatch(msg.content);
-                      return (
-                        <>
-                          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                            {miss.body}
-                          </ReactMarkdown>
-                          {msg.sources && msg.sources.length > 0 && <SourceBox sources={msg.sources} />}
-                          {miss.noMatch && (
-                            <button
-                              className="web-fallback-btn"
-                              onClick={() => askWebSearch(i)}
-                              disabled={runningTaskIds.size > 0}
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
-                              </svg>
-                              Search the web instead
-                            </button>
-                          )}
-                        </>
-                      );
-                    })()
+                    <AssistantMessage
+                      content={msg.content}
+                      sources={msg.sources}
+                      onWebSearch={() => askWebSearch(i)}
+                      webSearchDisabled={runningTaskIds.size > 0}
+                    />
                   ) : (
                     <>
                       {msg.attachments && msg.attachments.length > 0 && (

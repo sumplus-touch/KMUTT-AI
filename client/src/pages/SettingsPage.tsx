@@ -22,6 +22,8 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<any>({});
   const [saved, setSaved] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [kbIndexBusy, setKbIndexBusy] = useState(false);
+  const [kbIndexResult, setKbIndexResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [mcpStatuses, setMcpStatuses] = useState<McpStatus[]>([]);
   const [mcpConnecting, setMcpConnecting] = useState<string | null>(null);
   const [mcpJson, setMcpJson] = useState("");
@@ -79,6 +81,33 @@ export default function SettingsPage() {
     await api.saveSettings(settings);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  /**
+   * Create the Pinecone index from whatever is currently typed in this form.
+   *
+   * ensureIndex() reads settings.json on the server, not this component's
+   * state — saving first means the index is created with the name/model/
+   * cloud/region actually on screen, not whatever was saved last.
+   */
+  const createKnowledgeIndex = async () => {
+    setKbIndexBusy(true);
+    setKbIndexResult(null);
+    try {
+      await api.saveSettings(settings);
+      const res = await api.createKnowledgeIndex();
+      if (res.error) throw new Error(res.error);
+      setKbIndexResult({
+        ok: true,
+        message: res.created
+          ? `Index "${res.name}" created — ready in a few seconds.`
+          : `Index "${res.name}" already exists — nothing to do.`,
+      });
+    } catch (err: any) {
+      setKbIndexResult({ ok: false, message: err.message || "Failed to create the index." });
+    } finally {
+      setKbIndexBusy(false);
+    }
   };
 
   const testConnection = async () => {
@@ -521,8 +550,20 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
+              <div className="form-group">
+                <button className="btn btn-secondary" onClick={createKnowledgeIndex} disabled={kbIndexBusy || !settings.pineconeApiKey}>
+                  {kbIndexBusy ? "Creating…" : "Create Index"}
+                </button>
+                <p className="hint">
+                  Saves the settings above, then creates this Pinecone index if it doesn't already exist —
+                  no need to do this in the Pinecone console. Safe to click again later; an existing index is left untouched.
+                </p>
+                {kbIndexResult && (
+                  <span className={`test-result ${kbIndexResult.ok ? "success" : "error"}`}>{kbIndexResult.message}</span>
+                )}
+              </div>
               <p className="hint">
-                Manage documents on the <strong>Knowledge Base</strong> page. Save these settings first.
+                Manage documents on the <strong>Knowledge Base</strong> page.
               </p>
             </>
           )}
@@ -821,7 +862,7 @@ export default function SettingsPage() {
             <div key={ft.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
               <div style={{ flex: 1 }}>
                 <strong>{ft.name}</strong>
-                <div style={{ fontFamily: "monospace", fontSize: 12, marginTop: 2, color: "var(--text-muted)" }}>
+                <div style={{ fontFamily: "monospace", fontSize: 12, marginTop: 2, color: "var(--text-tertiary)" }}>
                   {showTokenId === ft.id ? ft.token : ft.token.slice(0, 8) + "••••••••" + ft.token.slice(-4)}
                 </div>
                 <div style={{ fontSize: 11, opacity: 0.5 }}>

@@ -18,6 +18,10 @@ import { reindex } from "./commands/reindex";
 import { rm } from "./commands/rm";
 import { completion } from "./commands/completion";
 import { watch } from "./commands/watch";
+import { exportBundle } from "./commands/export";
+import { importBundle } from "./commands/import";
+import { backfillPages } from "./commands/backfill";
+import { retitle } from "./commands/retitle";
 import { t, g } from "./ui/theme";
 import { load, DEFAULT_HOST } from "./config";
 
@@ -85,6 +89,39 @@ program
   .action((id: string, opts) => run(() => rm(id, { ...program.opts(), yes: opts.yes }))());
 
 program
+  .command("export [dir]")
+  .description("Write registry + source files to a portable bundle")
+  .option("--skip-files", "registry only, no document downloads")
+  .action((dir: string | undefined, opts) =>
+    run(() => exportBundle(dir ?? "./kmutt-bundle", { ...program.opts(), skipFiles: opts.skipFiles }))()
+  );
+
+program
+  .command("import <dir>")
+  .description("Load a bundle onto this server")
+  .option("--reindex", "re-embed everything (use when the Pinecone index differs)")
+  .option("--replace", "discard the existing registry instead of merging")
+  .option("-y, --yes", "skip confirmation")
+  .action((dir: string, opts) =>
+    run(() => importBundle(dir, { ...program.opts(), reindex: opts.reindex, replace: opts.replace, yes: opts.yes }))()
+  );
+
+program
+  .command("backfill-pages [id]")
+  .description("Add page numbers to existing chunks (no re-embedding)")
+  .option("-y, --yes", "skip confirmation")
+  .action((id: string | undefined, opts) => run(() => backfillPages(id, { ...program.opts(), yes: opts.yes }))());
+
+program
+  .command("retitle <csv>")
+  .description("Apply new titles from an edited worksheet (no re-embedding)")
+  .option("--dry-run", "show what would change without sending it")
+  .option("-y, --yes", "skip confirmation")
+  .action((csv: string, opts) =>
+    run(() => retitle(csv, { ...program.opts(), yes: opts.yes, dryRun: opts.dryRun }))()
+  );
+
+program
   .command("ls")
   .description("List documents")
   .option("--category <name>", "filter by category")
@@ -136,6 +173,10 @@ function helpText(): string {
     `    ${t.brand("show")} <id>            Document detail, status and errors`,
     `    ${t.brand("reindex")} <id>         Re-index after the source changed`,
     `    ${t.brand("rm")} <id>              Remove a document and its vectors`,
+    `    ${t.brand("export")} [dir]          Save registry + files as a portable bundle`,
+    `    ${t.brand("import")} <dir>          Load a bundle onto this server`,
+    `    ${t.brand("backfill-pages")}       Add page numbers without re-embedding`,
+    `    ${t.brand("retitle")} <csv>        Apply new titles from a worksheet`,
     "",
     `  ${t.bold("Operate")}`,
     `    ${t.brand("doctor")}               Check connection, index and workspace`,

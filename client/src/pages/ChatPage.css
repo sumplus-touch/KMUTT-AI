@@ -1115,7 +1115,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--danger, #e53935);
+  background: var(--error);
   color: white;
   font-size: 11px;
   font-weight: 700;
@@ -1427,6 +1427,33 @@
   font-size: 11px;
 }
 
+/* Inline citation chip - the [1] markers inside an answer, clickable. */
+.cite-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  margin: 0 1px;
+  vertical-align: 2px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--tertiary-light);
+  color: var(--tertiary);
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.cite-chip:hover {
+  background: var(--tertiary);
+  color: #fff;
+}
+
 /* ═══ Reference box — documents an answer was grounded in ═══ */
 .source-box {
   margin-top: 14px;
@@ -1458,19 +1485,83 @@
 
 .source-item + .source-item { border-top: 1px solid var(--border); }
 
+.source-box-hint {
+  margin-left: auto;
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  text-transform: none;
+}
+
 .source-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 14px;
-  text-align: left;
-  font-size: 13px;
-  color: var(--text-secondary);
+  align-items: stretch;
   transition: background 0.15s;
 }
 
 .source-row:hover { background: var(--bg-hover); }
+
+/* Primary action: open the document. Fills the row so the whole line is a
+   target, with the chevron carved out beside it. */
+.source-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 10px 4px 10px 14px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.source-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  background: none;
+  border: none;
+  border-left: 1px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+
+.source-row:hover .source-toggle { color: var(--accent); }
+.source-toggle.open { transform: rotate(180deg); color: var(--accent); }
+
+.source-warn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--warning-light);
+  color: #8a5b00;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.source-open-link {
+  margin-top: 10px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.source-open-link:hover { color: var(--accent-hover); text-decoration: underline; }
 
 .source-num {
   display: flex;
@@ -1486,14 +1577,29 @@
   flex-shrink: 0;
 }
 
-.source-title {
+.source-ident {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.source-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.source-sub {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .source-score {
@@ -1521,6 +1627,216 @@
   line-height: 20px;
   color: var(--text-secondary);
   overflow-wrap: break-word;
+}
+
+/* ═══ Source viewer — the cited document, opened at the cited page ═══ */
+.srcv-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3vh 3vw;
+  background: rgba(36, 25, 19, 0.55);
+  backdrop-filter: blur(3px);
+  animation: srcv-fade 0.16s ease-out;
+}
+
+@keyframes srcv-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.srcv {
+  display: flex;
+  flex-direction: column;
+  width: min(1080px, 100%);
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: srcv-rise 0.18s ease-out;
+}
+
+@keyframes srcv-rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.995); }
+  to   { opacity: 1; transform: none; }
+}
+
+.srcv-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.srcv-ref {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--tertiary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.srcv-titles { flex: 1; min-width: 0; }
+
+.srcv-dl,
+.srcv-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  border-radius: var(--radius-full);
+  transition: background 0.15s, color 0.15s;
+  cursor: pointer;
+}
+
+.srcv-dl {
+  padding: 5px 13px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  text-decoration: none;
+}
+
+.srcv-close { width: 32px; height: 32px; border: none; background: none; }
+
+.srcv-dl:hover,
+.srcv-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.srcv-titles h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srcv-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The passage the answer actually used — pinned above the document so the
+   reader can compare the claim against the page without hunting for it. */
+.srcv-quote {
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  background: var(--bg-tertiary);
+  max-height: 22vh;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.srcv-quote-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+}
+
+.srcv-quote p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 21px;
+  color: var(--text-secondary);
+  overflow-wrap: break-word;
+}
+
+.srcv-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg-dim);
+}
+
+.srcv-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+.srcv-html {
+  padding: 20px 24px;
+  background: var(--bg-elevated);
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--text-primary);
+  overflow-wrap: break-word;
+}
+
+.srcv-html table { border-collapse: collapse; width: 100%; }
+.srcv-html td, .srcv-html th { border: 1px solid var(--border); padding: 5px 8px; }
+
+.srcv-loading {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.srcv-missing {
+  max-width: 520px;
+  margin: 48px auto;
+  padding: 24px 28px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.srcv-missing strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.srcv-missing p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 21px;
+  color: var(--text-secondary);
+}
+
+.srcv-missing code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  margin: 0 2px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.srcv-missing .hint { color: var(--text-tertiary); font-size: 12px; }
+
+@media (max-width: 768px) {
+  .srcv-backdrop { padding: 0; }
+  .srcv { border-radius: 0; border: none; }
+  .srcv-quote { max-height: 30vh; }
 }
 
 /* ═══ Output panel — KMUTT theme, always reachable ═══ */

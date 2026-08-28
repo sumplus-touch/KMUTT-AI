@@ -18,6 +18,7 @@ const RECENT_COLLAPSED_COUNT = 8;
 /** Title shown in each page's sticky header. */
 const PAGE_TITLES: Record<string, string> = {
   "/": "KMUTT AI Chat",
+  "/chats": "All Chats",
   "/knowledge": "Knowledge Base",
   "/projects": "Projects",
   "/files": "Files",
@@ -41,6 +42,8 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
     history: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z",
     help: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z",
     robot: "M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7.5 11.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S9.83 13 9 13s-1.5-.67-1.5-1.5zM16 17H8v-2h8v2zm-1-4c-.83 0-1.5-.67-1.5-1.5S14.17 10 15 10s1.5.67 1.5 1.5S15.83 13 15 13z",
+    search: "M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z",
+    delete: "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z",
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -49,7 +52,7 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
   );
 }
 
-export { Icon };
+export { Icon, KmuttMark };
 
 /**
  * KMUTT dot-star mark.
@@ -101,7 +104,6 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [agentGroupName, setAgentGroupName] = useState("");
   const [agentConfigs, setAgentConfigs] = useState<any[]>([]);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
-  const [showAllRecent, setShowAllRecent] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { sessions, refresh, activeId, setActiveId, runningIds } = useChatNav();
@@ -164,7 +166,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     await refresh();
   };
 
-  const visibleRecent = showAllRecent ? sessions : sessions.slice(0, RECENT_COLLAPSED_COUNT);
+  const visibleRecent = sessions.slice(0, RECENT_COLLAPSED_COUNT);
 
   return (
     <div className="layout">
@@ -218,9 +220,9 @@ export default function Layout({ children }: { children: ReactNode }) {
         {/* Recent shows on every page; only this list scrolls */}
         <div className="sidebar-label recent-label">
           <span>Recent</span>
-          {sessions.length > RECENT_COLLAPSED_COUNT && (
-            <button className="all-recent" onClick={() => setShowAllRecent(!showAllRecent)}>
-              {showAllRecent ? "Show less" : "All Recent"}
+          {sessions.length > 0 && (
+            <button className="all-recent" onClick={() => handleNav("/chats")}>
+              All Recent
             </button>
           )}
         </div>

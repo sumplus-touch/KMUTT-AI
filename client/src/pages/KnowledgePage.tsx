@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { api, sandboxUrl } from "../utils/api";
 import "./PageStyles.css";
 import "./KnowledgePage.css";
@@ -42,10 +42,10 @@ interface KbStatus {
   error?: string;
 }
 
-// Five groups, down from eight. The originals had three categories
-// (navigation, it, student-life) that never received a single document, so a
-// third of the browse grid was permanently empty. LEGACY_CATEGORY_MAP folds
-// the retired values into their new home so existing documents keep a place.
+// The five well-known groups, kept for their labels/icons/descriptions. The
+// browse grid is no longer limited to these — any category value actually in
+// use gets its own card (see categoriesInUse below) — but a document tagged
+// with one of these five still gets the nicer label instead of a raw slug.
 const CATEGORIES = [
   { value: "regulations", label: "Regulations & Policies", icon: "policy",
     desc: "Official rules, announcements, discipline and administrative procedure." },
@@ -59,7 +59,9 @@ const CATEGORIES = [
     desc: "Forms, manuals and anything that does not fit another group." },
 ];
 
-/** Retired category values -> their replacement. */
+const KNOWN_CATEGORY = new Map(CATEGORIES.map((c) => [c.value, c]));
+
+/** Retired category values from an earlier grouping -> their replacement. */
 const LEGACY_CATEGORY_MAP: Record<string, string> = {
   guidelines: "regulations",
   navigation: "enrollment",
@@ -67,13 +69,41 @@ const LEGACY_CATEGORY_MAP: Record<string, string> = {
   "student-life": "other",
 };
 
-/** Normalise a stored category to one of the five current groups. */
+/**
+ * Normalise a stored category value.
+ *
+ * Only the four explicitly-retired legacy values get folded away — anything
+ * else (including a category someone typed in via "+ New Category") is kept
+ * as its own group instead of being collapsed into "Other". Falls back to
+ * "other" only when the field is genuinely empty.
+ */
 function normaliseCategory(c: string): string {
-  const mapped = LEGACY_CATEGORY_MAP[c] || c;
-  return CATEGORIES.some((x) => x.value === mapped) ? mapped : "other";
+  const trimmed = (c || "").trim();
+  if (!trimmed) return "other";
+  return LEGACY_CATEGORY_MAP[trimmed] || trimmed;
 }
 
-const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(CATEGORIES.map((c) => [c.value, c.label]));
+/** Turn a raw category slug into a readable label ("new-forms" -> "New Forms"). */
+function titleCaseSlug(slug: string): string {
+  return slug
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function categoryLabel(value: string): string {
+  return KNOWN_CATEGORY.get(value)?.label || titleCaseSlug(value) || "Other";
+}
+
+/** Slugify free text typed into "+ New Category" into a stable value. */
+function slugifyCategory(label: string): string {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 function KbIcon({ name, size = 24 }: { name: string; size?: number }) {
   const paths: Record<string, string> = {
@@ -163,7 +193,7 @@ function DocViewer({ doc, onClose }: { doc: KnowledgeDoc; onClose: () => void })
         </header>
 
         <div className="kb-viewer-meta">
-          {CATEGORY_LABEL[normaliseCategory(doc.category)]} · {doc.fileName} · {formatSize(doc.fileSize)} · {doc.chunkCount} indexed chunks
+          {categoryLabel(normaliseCategory(doc.category))} · {doc.fileName} · {formatSize(doc.fileSize)} · {doc.chunkCount} indexed chunks
         </div>
 
         <div className="kb-viewer-body">
@@ -208,11 +238,21 @@ export default function KnowledgePage() {
   const [viewing, setViewing] = useState<KnowledgeDoc | null>(null);
   const [notice, setNotice] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
 
-  // Add-document form
+  // Add-document form. "single" keeps the original one-file/one-title flow;
+  // "multiple" and "zip" both fan out into a batch — each file gets its title
+  // from its own filename (there is no sane way to type 289 titles by hand),
+  // and the chosen category applies to every file in the batch.
+  const [uploadMode, setUploadMode] = useState<"single" | "multiple" | "zip">("single");
   const [file, setFile] = useState<File | null>(null);
-  const [form, setForm] = useState({ title: "", category: "other", description: "", access: "private" });
+  const [files, setFiles] = useState<File[]>([]);
+  const [form, setForm] = useState({ title: "", category: "other", description: "" });
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [newCategoryText, setNewCategoryText] = useState("");
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [progress, setProgress] = useState<
+    Array<{ name: string; status: "pending" | "working" | "done" | "error" | "skipped"; message?: string }>
+  >([]);
 
   const refresh = useCallback(() => {
     api.knowledgeStatus().then(setStatus).catch(() => setStatus(null));
@@ -237,26 +277,159 @@ export default function KnowledgePage() {
     }
   };
 
+  const resetAddForm = () => {
+    setFile(null);
+    setFiles([]);
+    setForm({ title: "", category: "other", description: "" });
+    setShowNewCategory(false);
+    setNewCategoryText("");
+    setProgress([]);
+    setUploadMode("single");
+  };
+
+  /** Strip the extension — the same default the single-file title field uses. */
+  const titleFromFileName = (name: string) => name.replace(/\.[^.]+$/, "");
+
+  /**
+   * One dropzone, mode inferred from what got picked — no upfront tab choice.
+   * A single .zip goes to the extract-and-index flow, a single anything-else
+   * is the normal one-file form, and picking (or dropping) more than one file
+   * is a batch, titled from each filename.
+   */
+  const handleFileSelection = (selected: File[]) => {
+    if (selected.length === 0) return;
+    if (selected.length === 1 && selected[0].name.toLowerCase().endsWith(".zip")) {
+      setUploadMode("zip");
+      setFile(selected[0]);
+      setFiles([]);
+    } else if (selected.length === 1) {
+      setUploadMode("single");
+      setFile(selected[0]);
+      setFiles([]);
+      if (!form.title) setForm((s) => ({ ...s, title: titleFromFileName(selected[0].name) }));
+    } else {
+      setUploadMode("multiple");
+      setFiles(selected);
+      setFile(null);
+    }
+  };
+
+  const setProgressAt = (i: number, patch: { status: "working" | "done" | "error" | "skipped"; message?: string }) =>
+    setProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+
+  /** Upload one already-selected File, register it, and index it. */
+  const uploadAndRegister = async (f: File, title: string) => {
+    const up = await api.uploadFile(f, "knowledge");
+    if (up.error) throw new Error(up.error);
+    const res = await api.addKnowledgeDoc({
+      filePath: up.path,
+      title,
+      description: "",
+      category: form.category,
+    });
+    if (res.error) throw new Error(res.error);
+    return res.document;
+  };
+
   const submitDoc = async () => {
-    if (!file || !form.title.trim()) return;
+    if (uploadMode === "single") {
+      if (!file || !form.title.trim()) return;
+      setUploading(true);
+      setNotice(null);
+      try {
+        const up = await api.uploadFile(file, "knowledge");
+        if (up.error) throw new Error(up.error);
+        const res = await api.addKnowledgeDoc({
+          filePath: up.path,
+          title: form.title.trim(),
+          description: form.description,
+          category: form.category,
+            });
+        if (res.error) throw new Error(res.error);
+        setNotice({ kind: "ok", text: `"${res.document.title}" indexed — ${res.document.chunkCount} chunks.` });
+        setShowAdd(false);
+        resetAddForm();
+        refresh();
+      } catch (err: any) {
+        setNotice({ kind: "error", text: err.message });
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
+
+    if (uploadMode === "multiple") {
+      if (files.length === 0) return;
+      setUploading(true);
+      setNotice(null);
+      setProgress(files.map((f) => ({ name: f.name, status: "pending" as const })));
+      let ok = 0, failed = 0;
+      for (let i = 0; i < files.length; i++) {
+        setProgressAt(i, { status: "working" });
+        try {
+          await uploadAndRegister(files[i], titleFromFileName(files[i].name));
+          setProgressAt(i, { status: "done" });
+          ok++;
+        } catch (err: any) {
+          setProgressAt(i, { status: "error", message: err.message });
+          failed++;
+        }
+      }
+      setNotice({
+        kind: failed === 0 ? "ok" : "error",
+        text: `${ok} of ${files.length} indexed${failed > 0 ? `, ${failed} failed — see the list below` : "."}`,
+      });
+      refresh();
+      setUploading(false);
+      if (failed === 0) { setShowAdd(false); resetAddForm(); }
+      return;
+    }
+
+    // uploadMode === "zip"
+    if (!file) return;
     setUploading(true);
     setNotice(null);
+    setProgress([]);
     try {
       const up = await api.uploadFile(file, "knowledge");
       if (up.error) throw new Error(up.error);
-      const res = await api.addKnowledgeDoc({
-        filePath: up.path,
-        title: form.title.trim(),
-        description: form.description,
-        category: form.category,
-        access: form.access,
+      const zipRes = await api.extractZip(up.path);
+      if (zipRes.error) throw new Error(zipRes.error);
+
+      const extracted: Array<{ fileName: string; filePath: string }> = zipRes.extracted || [];
+      const skipped: Array<{ fileName: string; reason: string }> = zipRes.skipped || [];
+
+      setProgress([
+        ...extracted.map((e) => ({ name: e.fileName, status: "pending" as const })),
+        ...skipped.map((s) => ({ name: s.fileName, status: "skipped" as const, message: s.reason })),
+      ]);
+
+      let ok = 0, failed = 0;
+      for (let i = 0; i < extracted.length; i++) {
+        setProgressAt(i, { status: "working" });
+        try {
+          const res = await api.addKnowledgeDoc({
+            filePath: extracted[i].filePath,
+            title: titleFromFileName(extracted[i].fileName),
+            description: "",
+            category: form.category,
+                });
+          if (res.error) throw new Error(res.error);
+          setProgressAt(i, { status: "done" });
+          ok++;
+        } catch (err: any) {
+          setProgressAt(i, { status: "error", message: err.message });
+          failed++;
+        }
+      }
+      setNotice({
+        kind: failed === 0 ? "ok" : "error",
+        text: `${ok} of ${extracted.length} indexed` +
+          (skipped.length > 0 ? `, ${skipped.length} skipped (unsupported type)` : "") +
+          (failed > 0 ? `, ${failed} failed — see the list below` : "."),
       });
-      if (res.error) throw new Error(res.error);
-      setNotice({ kind: "ok", text: `"${res.document.title}" indexed — ${res.document.chunkCount} chunks.` });
-      setShowAdd(false);
-      setFile(null);
-      setForm({ title: "", category: "other", description: "", access: "private" });
       refresh();
+      if (failed === 0) { setShowAdd(false); resetAddForm(); }
     } catch (err: any) {
       setNotice({ kind: "error", text: err.message });
     } finally {
@@ -287,6 +460,21 @@ export default function KnowledgePage() {
   const visibleDocs = activeCategory
     ? docs.filter((d) => normaliseCategory(d.category) === activeCategory)
     : docs;
+
+  // The five well-known groups always show (even empty, as discoverable
+  // upload targets); any category typed in via "+ New Category" earns its
+  // own card here too instead of disappearing into "Other".
+  const categoryCards = useMemo(() => {
+    const custom = new Set<string>();
+    for (const d of docs) {
+      const v = normaliseCategory(d.category);
+      if (!KNOWN_CATEGORY.has(v)) custom.add(v);
+    }
+    return [
+      ...CATEGORIES,
+      ...Array.from(custom).sort().map((v) => ({ value: v, label: categoryLabel(v), icon: "folder", desc: "" })),
+    ];
+  }, [docs]);
 
   return (
     <div className="page kb-page">
@@ -366,7 +554,7 @@ export default function KnowledgePage() {
                   <div className="kb-result-titles">
                     <h3>{h.title || h.fileName}</h3>
                     <span className="kb-result-meta">
-                      {h.category && <span className="chip">{CATEGORY_LABEL[normaliseCategory(h.category || "other")]}</span>}
+                      {h.category && <span className="chip">{categoryLabel(normaliseCategory(h.category || "other"))}</span>}
                       {typeof h.chunkIndex === "number" && <span className="kb-chunk">chunk {h.chunkIndex}</span>}
                     </span>
                   </div>
@@ -389,7 +577,17 @@ export default function KnowledgePage() {
             )}
           </div>
           <div className="kb-bento">
-            {CATEGORIES.map((c) => {
+            <button
+              className={`kb-cat-card ${activeCategory === null ? "active" : ""}`}
+              onClick={() => setActiveCategory(null)}
+            >
+              <span className="kb-cat-icon"><KbIcon name="doc" size={26} /></span>
+              <h3>All Files</h3>
+              <p>Every document, across every category.</p>
+              <span className="kb-cat-count">{docs.length} {docs.length === 1 ? "document" : "documents"}</span>
+            </button>
+
+            {categoryCards.map((c) => {
               const count = docs.filter((d) => normaliseCategory(d.category) === c.value).length;
               return (
                 <button
@@ -399,11 +597,23 @@ export default function KnowledgePage() {
                 >
                   <span className="kb-cat-icon"><KbIcon name={c.icon} size={26} /></span>
                   <h3>{c.label}</h3>
-                  <p>{c.desc}</p>
+                  {c.desc && <p>{c.desc}</p>}
                   <span className="kb-cat-count">{count} {count === 1 ? "document" : "documents"}</span>
                 </button>
               );
             })}
+
+            {/* A category only really exists once a document uses it, so
+                this shortcut goes straight to Add Document with the "new
+                category" field already open, ready to name and upload into. */}
+            <button
+              className="kb-cat-card kb-cat-new"
+              onClick={() => { setShowAdd(true); setShowNewCategory(true); }}
+            >
+              <span className="kb-cat-icon kb-cat-new-icon"><KbIcon name="add" size={26} /></span>
+              <h3>New Category</h3>
+              <p>Name a category and upload its first document.</p>
+            </button>
           </div>
         </section>
       )}
@@ -412,7 +622,7 @@ export default function KnowledgePage() {
       {results === null && (
         <section className="kb-section">
           <div className="kb-section-head">
-            <h2>{activeCategory ? CATEGORY_LABEL[activeCategory] : "All documents"}</h2>
+            <h2>{activeCategory ? categoryLabel(activeCategory) : "All documents"}</h2>
           </div>
           {visibleDocs.length === 0 ? (
             <div className="empty-state">
@@ -432,7 +642,6 @@ export default function KnowledgePage() {
                     <div className="kb-doc-title">
                       {d.title}
                       <span className={`status-badge ${d.status === "indexed" ? "active" : "inactive"}`}>{d.status}</span>
-                      {d.access === "shared" && <span className="chip">shared</span>}
                       {d.fileMissing && (
                         <span className="status-badge missing" title="Source file not found in the workspace">
                           file missing
@@ -464,93 +673,144 @@ export default function KnowledgePage() {
 
       {/* ─── Add Document modal ─── */}
       {showAdd && (
-        <div className="kb-modal-backdrop" onClick={() => !uploading && setShowAdd(false)}>
+        <div className="kb-modal-backdrop" onClick={() => { if (uploading) return; setShowAdd(false); resetAddForm(); }}>
           <div className="kb-modal" onClick={(e) => e.stopPropagation()}>
             <header className="kb-modal-head">
               <span className="kb-modal-title"><KbIcon name="upload" size={20} /> Add Document</span>
-              <button className="btn btn-ghost btn-icon" onClick={() => setShowAdd(false)} disabled={uploading}>
+              <button className="btn btn-ghost btn-icon" onClick={() => { setShowAdd(false); resetAddForm(); }} disabled={uploading}>
                 <KbIcon name="close" size={20} />
               </button>
             </header>
 
             <div className="kb-modal-body">
+              {/* One dropzone — the mode (single / batch / zip) is inferred
+                  from what gets picked, not chosen up front. A single file
+                  keeps its own title/description below; a batch (several
+                  files, or every file inside a .zip) can't sanely collect
+                  hundreds of titles by hand, so each is named from its
+                  filename instead. */}
               <label
-                className={`kb-dropzone ${dragOver ? "over" : ""} ${file ? "has-file" : ""}`}
+                className={`kb-dropzone ${dragOver ? "over" : ""} ${(file || files.length) ? "has-file" : ""}`}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault(); setDragOver(false);
-                  const f = e.dataTransfer.files?.[0];
-                  if (f) { setFile(f); if (!form.title) setForm((s) => ({ ...s, title: f.name.replace(/\.[^.]+$/, "") })); }
-                }}
+                onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFileSelection(Array.from(e.dataTransfer.files || [])); }}
               >
                 <input
                   type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.md,.txt,.csv,.json,.xml,.yaml,.yml,.html,.css,.js,.ts,.py"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) { setFile(f); if (!form.title) setForm((s) => ({ ...s, title: f.name.replace(/\.[^.]+$/, "") })); }
-                  }}
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.md,.txt,.csv,.json,.xml,.yaml,.yml,.html,.css,.js,.ts,.py,.zip"
+                  onChange={(e) => handleFileSelection(Array.from(e.target.files || []))}
                 />
                 <span className="kb-dropzone-icon"><KbIcon name="upload" size={30} /></span>
-                {file ? (
+                {uploadMode === "multiple" && files.length > 0 ? (
+                  <>
+                    <strong>{files.length} files selected</strong>
+                    <span className="hint">{formatSize(files.reduce((s, f) => s + f.size, 0))} total — click to choose different files</span>
+                  </>
+                ) : uploadMode === "zip" && file ? (
                   <>
                     <strong>{file.name}</strong>
-                    <span className="hint">{formatSize(file.size)} — click to choose a different file</span>
+                    <span className="hint">{formatSize(file.size)} zip — every supported file inside will be extracted and indexed</span>
+                  </>
+                ) : file ? (
+                  <>
+                    <strong>{file.name}</strong>
+                    <span className="hint">{formatSize(file.size)} — click to choose something different</span>
                   </>
                 ) : (
                   <>
-                    <strong>Click to browse or drop a file here</strong>
-                    <span className="hint">PDF, DOCX, XLSX, MD, TXT (max 50 MB)</span>
+                    <strong>Click to browse or drop file(s) here</strong>
+                    <span className="hint">One file, several at once, or a .zip of many — PDF, DOCX, XLSX, MD, TXT (max 200 MB)</span>
                   </>
                 )}
               </label>
 
-              <div className="form-group">
-                <label>Title <span className="kb-req">*</span></label>
-                <input
-                  type="text"
-                  placeholder="Enter document title"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Category</label>
-                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                  {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Description (optional)</label>
-                <textarea
-                  rows={3}
-                  placeholder="Add a brief description or abstract..."
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Knowledge Base Access</label>
-                <div className="kb-access">
-                  <label className={`kb-access-opt ${form.access === "private" ? "selected" : ""}`}>
-                    <input type="radio" name="access" checked={form.access === "private"} onChange={() => setForm({ ...form, access: "private" })} />
-                    <span><strong>Private</strong><em>Only available to you in AI Chat.</em></span>
-                  </label>
-                  <label className={`kb-access-opt ${form.access === "shared" ? "selected" : ""}`}>
-                    <input type="radio" name="access" checked={form.access === "shared"} onChange={() => setForm({ ...form, access: "shared" })} />
-                    <span><strong>Department Shared</strong><em>Visible to everyone using this workspace.</em></span>
-                  </label>
+              {uploadMode === "single" && (
+                <div className="form-group">
+                  <label>Title <span className="kb-req">*</span></label>
+                  <input
+                    type="text"
+                    placeholder="Enter document title"
+                    value={form.title}
+                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  />
                 </div>
+              )}
+
+              <div className="form-group">
+                <label>Category{uploadMode !== "single" && " (applies to every file in this batch)"}</label>
+                <select
+                  value={showNewCategory ? "__new__" : form.category}
+                  onChange={(e) => {
+                    if (e.target.value === "__new__") { setShowNewCategory(true); return; }
+                    setShowNewCategory(false);
+                    setForm({ ...form, category: e.target.value });
+                  }}
+                >
+                  {categoryCards.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  <option value="__new__">+ New Category…</option>
+                </select>
+                {showNewCategory && (
+                  <input
+                    type="text"
+                    className="kb-new-category-input"
+                    placeholder="Name the new category, e.g. Scholarships"
+                    autoFocus
+                    value={newCategoryText}
+                    onChange={(e) => {
+                      const text = e.target.value;
+                      setNewCategoryText(text);
+                      setForm({ ...form, category: slugifyCategory(text) || "other" });
+                    }}
+                  />
+                )}
               </div>
+
+              {uploadMode === "single" && (
+                <div className="form-group">
+                  <label>Description (optional)</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Add a brief description or abstract..."
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  />
+                </div>
+              )}
+
+              {/* Per-file batch progress — a silent multi-minute wait for 289
+                  files would look frozen without this. */}
+              {progress.length > 0 && (
+                <div className="kb-progress-list">
+                  {progress.map((p, i) => (
+                    <div key={`${p.name}-${i}`} className={`kb-progress-row kb-progress-${p.status}`}>
+                      <span className="kb-progress-icon">
+                        {p.status === "done" && "✓"}
+                        {p.status === "error" && "!"}
+                        {p.status === "skipped" && "–"}
+                        {p.status === "working" && <span className="kb-progress-spin" />}
+                        {p.status === "pending" && "·"}
+                      </span>
+                      <span className="kb-progress-name" title={p.name}>{p.name}</span>
+                      {p.message && <span className="kb-progress-msg" title={p.message}>{p.message}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <footer className="kb-modal-foot">
-              <button className="btn btn-secondary" onClick={() => setShowAdd(false)} disabled={uploading}>Cancel</button>
-              <button className="btn btn-primary" onClick={submitDoc} disabled={!file || !form.title.trim() || uploading}>
+              <button className="btn btn-secondary" onClick={() => { setShowAdd(false); resetAddForm(); }} disabled={uploading}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={submitDoc}
+                disabled={
+                  uploading ||
+                  (uploadMode === "single" && (!file || !form.title.trim())) ||
+                  (uploadMode === "multiple" && files.length === 0) ||
+                  (uploadMode === "zip" && !file)
+                }
+              >
                 {uploading ? "Indexing…" : "Upload & Index"}
               </button>
             </footer>

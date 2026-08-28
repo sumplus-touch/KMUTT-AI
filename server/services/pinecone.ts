@@ -291,3 +291,44 @@ export async function getIndexStats(): Promise<{
     return { ok: false, indexName: cfg.indexName, namespace: cfg.namespace, error: err.message };
   }
 }
+
+/**
+ * Patch metadata on existing vectors WITHOUT re-embedding them.
+ *
+ * `update` touches only the fields given, leaving the embedding untouched — so
+ * page numbers can be added to documents indexed before page tracking existed
+ * at no embedding cost. A full re-index would re-embed every chunk and bill for
+ * it; this is free and keeps the vectors byte-identical.
+ *
+ * Pinecone has no batch metadata update, so these go one at a time. A small
+ * concurrency window keeps a few hundred chunks quick without tripping limits.
+ */
+export async function updateChunkMetadata(
+  updates: Array<{ id: string; metadata: Record<string, any> }>,
+  concurrency = 8
+): Promise<{ updated: number; failed: number }> {
+  if (updates.length === 0) return { updated: 0, failed: 0 };
+
+  const cfg = await getPineconeConfig();
+  const ns = getClient(cfg).index(cfg.indexName).namespace(cfg.namespace);
+
+  let updated = 0;
+  let failed = 0;
+  let cursor = 0;
+
+  const worker = async () => {
+    while (cursor < updates.length) {
+      const u = updates[cursor++];
+      try {
+        await ns.update({ id: u.id, metadata: u.metadata });
+        updated++;
+      } catch {
+        // One bad id must not abort the whole backfill.
+        failed++;
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, updates.length) }, worker));
+  return { updated, failed };
+}

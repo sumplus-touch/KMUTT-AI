@@ -38,7 +38,10 @@ export function sandboxUrl(filePath: string, cacheBust = false): string {
   if (token) params.set("token", token);
   if (cacheBust) params.set("t", Date.now().toString());
   const qs = params.toString();
-  return `/sandbox/${filePath}${qs ? `?${qs}` : ""}`;
+  // Encode each segment: knowledge-base files are named in Thai and many carry
+  // spaces, so a raw path breaks the URL (and a "#" in a name would truncate it).
+  const encoded = filePath.split("/").map(encodeURIComponent).join("/");
+  return `/sandbox/${encoded}${qs ? `?${qs}` : ""}`;
 }
 
 export const api = {
@@ -160,6 +163,7 @@ export const api = {
   addKnowledgeDoc: (data: {
     filePath: string; title: string; description?: string; category?: string; access?: string;
   }) => request("/knowledge/documents", { method: "POST", body: JSON.stringify(data) }),
+  extractZip: (filePath: string) => request("/knowledge/extract-zip", { method: "POST", body: JSON.stringify({ filePath }) }),
   reindexKnowledgeDoc: (id: string) => request(`/knowledge/documents/${id}/reindex`, { method: "POST" }),
   deleteKnowledgeDoc: (id: string) => request(`/knowledge/documents/${id}`, { method: "DELETE" }),
   searchKnowledge: (query: string, topK?: number, category?: string) =>

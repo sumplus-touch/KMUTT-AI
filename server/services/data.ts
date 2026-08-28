@@ -36,6 +36,8 @@ export interface ChatSession {
     sources?: Array<{
       /** Inline citation number the model was told to use ([1], [2] …). */
       ref?: number;
+      /** Resolves the citation back to its document, so it can be opened. */
+      docId?: string;
       title: string;
       fileName?: string;
       category?: string;

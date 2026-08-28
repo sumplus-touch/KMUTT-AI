@@ -776,6 +776,23 @@ interface TigerBotResponse {
   toolResults?: Array<{ tool: string; result: any }>;
 }
 
+/**
+ * The part of a reply the user actually sees.
+ *
+ * Reasoning models (MiniMax-M2, DeepSeek-R1, ...) emit their scratchpad inline
+ * as <think>...</think>. Scanning that scratchpad for phrases like "let me" or
+ * "I'll" made the continuation heuristics below fire on finished answers: a
+ * completed knowledge-base reply was nudged three times and the good answer was
+ * overwritten by loop chatter ("The task is already complete."). The heuristics
+ * must look only at the visible answer.
+ */
+function visibleContentOf(content: string | null | undefined): string {
+  let v = content || "";
+  v = v.replace(/<(think|thinking|reasoning|thought|analysis)>[\s\S]*?<\/\1>/gi, "");
+  v = v.replace(/<(think|thinking|reasoning|thought|analysis)>[\s\S]*$/i, "");
+  return v.trim();
+}
+
 // Strip internal tool call markers from LLM responses before showing to users
 // Handles various formats the LLM may use to represent tool calls inline
 function sanitizeToolCallContent(content: string): string {
@@ -1454,7 +1471,8 @@ export async function callTigerBotWithTools(
     // If no tool calls, check if the LLM is giving up after errors — nudge it to retry
     if (!toolCalls.length) {
       const lastToolFailed = toolResults.length > 0 && (toolResults[toolResults.length - 1]?.result?.ok === false || toolResults[toolResults.length - 1]?.result?.exitCode === 1);
-      const contentLooksLikeGivingUp = /\b(error|fail|unable|cannot|couldn'?t|sorry|unfortunately|issue|problem)\b/i.test(message.content || "");
+      const visibleContent = visibleContentOf(message.content);
+      const contentLooksLikeGivingUp = /\b(error|fail|unable|cannot|couldn'?t|sorry|unfortunately|issue|problem)\b/i.test(visibleContent);
 
       // Check if sub-agents are still working — do NOT stop if work is pending
       if (sessionId) {
@@ -1509,8 +1527,11 @@ export async function callTigerBotWithTools(
       }
 
       // Also nudge if the LLM stops with incomplete-sounding content (even without explicit errors)
-      const contentLooksIncomplete = /\b(will now|next step|let me|i('ll| will)|working on|in progress|wait for)\b/i.test(message.content || "");
-      if (contentLooksIncomplete && errorRecoveryAttempts < maxErrorRecoveries && round < maxToolRounds - 1) {
+      const contentLooksIncomplete = /\b(will now|next step|let me|i('ll| will)|working on|in progress|wait for)\b/i.test(visibleContent);
+      // A reply that already cites its sources ([1], [2] ...) is an answer,
+      // not a plan - never nudge past it.
+      const alreadyAnswered = /\[\d{1,2}\]/.test(visibleContent);
+      if (contentLooksIncomplete && !alreadyAnswered && errorRecoveryAttempts < maxErrorRecoveries && round < maxToolRounds - 1) {
         errorRecoveryAttempts++;
         console.log(`toolloop LLM stopped with incomplete-sounding response. Nudging to continue (attempt ${errorRecoveryAttempts}/${maxErrorRecoveries})...`);
         allMessages.push({

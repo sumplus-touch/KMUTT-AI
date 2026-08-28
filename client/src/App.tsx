@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
 import AuthGate from "./components/AuthGate";
 import { ChatNavProvider } from "./components/ChatNavContext";
@@ -9,6 +9,7 @@ import SkillsPage from "./pages/SkillsPage";
 import SettingsPage from "./pages/SettingsPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import KnowledgePage from "./pages/KnowledgePage";
+import AllChatsPage from "./pages/AllChatsPage";
 
 export default function App() {
   return (
@@ -18,12 +19,15 @@ export default function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<ChatPage />} />
+            <Route path="/chats" element={<AllChatsPage />} />
             <Route path="/knowledge" element={<KnowledgePage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/files" element={<FilesPage />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/skills" element={<SkillsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            {/* Unknown paths rendered an empty <main>; send them to the chat. */}
+            <Route path="*" element={<Navigate to={{ pathname: "/", search: window.location.search }} replace />} />
           </Routes>
         </Layout>
       </ChatNavProvider>

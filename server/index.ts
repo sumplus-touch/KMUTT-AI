@@ -55,9 +55,13 @@ const loggerConfig = isDev
     }
   : { level: process.env.LOG_LEVEL || "warn" };
 
+// 200MB — raised from 50MB so a bulk knowledge-base upload (a .zip of many
+// PDFs) fits in one request. A single attachment is still nowhere near this.
+const UPLOAD_BODY_LIMIT = 200 * 1024 * 1024;
+
 const fastify = Fastify({
   logger: loggerConfig,
-  bodyLimit: 50 * 1024 * 1024, // 50MB
+  bodyLimit: UPLOAD_BODY_LIMIT,
   serverFactory: (handler) => {
     httpServer.on("request", handler);
     return httpServer;
@@ -67,7 +71,7 @@ const fastify = Fastify({
 // Socket.io on the shared HTTP server
 const io = new Server(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] },
-  maxHttpBufferSize: 50 * 1024 * 1024, // 50MB — match Fastify bodyLimit
+  maxHttpBufferSize: UPLOAD_BODY_LIMIT, // match Fastify bodyLimit
 });
 
 // Decorate fastify with shared config

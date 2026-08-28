@@ -14,7 +14,9 @@ const ALLOWED_CHAT_EXTENSIONS = [
 ];
 
 export async function filesRoutes(fastify: FastifyInstance) {
-  await fastify.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } });
+  // 200MB — matches the Fastify bodyLimit, so a bulk knowledge-base .zip
+  // upload isn't rejected before it ever reaches the extraction route.
+  await fastify.register(multipart, { limits: { fileSize: 200 * 1024 * 1024 } });
 
   fastify.get("/", async (request, reply) => {
     try {

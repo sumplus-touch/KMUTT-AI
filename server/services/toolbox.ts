@@ -772,6 +772,7 @@ async function searchKnowledgeBaseTool_impl(args: { query: string; topK?: number
         "Cite these passages inline using their [ref] number, e.g. [1]. Only cite a number you actually used.",
       results: hits.map((h) => ({
         ref: refFor(h),
+        docId: h.docId,
         title: h.title || h.fileName || "Untitled",
         category: h.category,
         page: h.page,

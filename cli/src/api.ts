@@ -9,6 +9,7 @@ import { load } from "./config";
 export interface KnowledgeDoc {
   id: string;
   title: string;
+  description?: string;
   category: string;
   fileName: string;
   filePath: string;
@@ -96,4 +97,22 @@ export const api = {
   remove: (id: string) =>
     request<{ success: boolean; warning?: string }>(`/api/knowledge/documents/${id}`, { method: "DELETE" }),
   settings: () => request<Record<string, any>>("/api/settings"),
+  /** Rename documents — registry + chunk metadata, no re-embedding. */
+  retitle: (titles: Array<{ id: string; title: string }>) =>
+    request<{ renamed: number; unchanged: number; chunksPatched: number; failed: number; notFound: string[] }>(
+      "/api/knowledge/retitle",
+      { method: "POST", body: JSON.stringify({ titles }) }
+    ),
+  /** Patch page metadata onto existing vectors — no re-embedding. */
+  backfillPages: (id?: string) =>
+    request<{ documents: number; chunksPatched: number; failed: number; skipped: number; problems: any[] }>(
+      "/api/knowledge/backfill-pages",
+      { method: "POST", body: JSON.stringify(id ? { id } : {}) }
+    ),
+  /** Restore an exported registry without re-embedding (see kmutt import). */
+  restore: (documents: KnowledgeDoc[], mode: "merge" | "replace" = "merge") =>
+    request<{ success: boolean; restored: number; rejected: number; total: number }>("/api/knowledge/restore", {
+      method: "POST",
+      body: JSON.stringify({ documents, mode }),
+    }),
 };

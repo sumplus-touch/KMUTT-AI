@@ -274,3 +274,55 @@ export function chunkPages(pageTexts: string[], opts: ChunkOptions = {}): Chunk[
   });
   return chunks;
 }
+
+/**
+ * Work out which page each chunk of a LEGACY (whole-document) chunking landed on.
+ *
+ * Documents indexed before page tracking were chunked from the concatenated
+ * text, so their chunk boundaries do not line up with chunkPages(). Re-chunking
+ * them the new way would produce different text under the same ids, which would
+ * make a metadata-only patch wrong. Instead this reproduces the ORIGINAL cut,
+ * then maps each chunk's offset back to the page it came from — letting page
+ * numbers be backfilled onto existing vectors without re-embedding anything.
+ *
+ * Returns one entry per legacy chunk, in the original index order.
+ */
+export function mapLegacyChunksToPages(pageTexts: string[], opts: ChunkOptions = {}): Array<{ index: number; page: number }> {
+  // Reproduce extractText()'s joined string, then chunkText()'s normalisation.
+  const joinedRaw = pageTexts.join("\n\n");
+  const normalisedFull = joinedRaw.replace(/\r\n/g, "\n");
+  const leadingTrim = normalisedFull.length - normalisedFull.trimStart().length;
+  const normalised = normalisedFull.trim();
+
+  // Where each page begins inside `normalised`.
+  const pageStarts: number[] = [];
+  let acc = 0;
+  for (const p of pageTexts) {
+    pageStarts.push(acc - leadingTrim);
+    acc += p.replace(/\r\n/g, "\n").length + 2; // +2 for the "\n\n" join
+  }
+
+  const pageAt = (offset: number): number => {
+    let page = 1;
+    for (let i = 0; i < pageStarts.length; i++) {
+      if (offset >= pageStarts[i]) page = i + 1;
+      else break;
+    }
+    return page;
+  };
+
+  const chunks = chunkText(normalised, opts);
+  const out: Array<{ index: number; page: number }> = [];
+  let searchFrom = 0;
+
+  for (const c of chunks) {
+    // Chunks are sequential, so searching forward keeps this linear and avoids
+    // matching an earlier repeat of the same boilerplate.
+    let at = normalised.indexOf(c.text, searchFrom);
+    if (at === -1) at = normalised.indexOf(c.text); // fall back to a global search
+    if (at === -1) at = searchFrom;                 // give up: keep the running position
+    out.push({ index: c.index, page: pageAt(at) });
+    searchFrom = Math.max(searchFrom, at + 1);
+  }
+  return out;
+}
