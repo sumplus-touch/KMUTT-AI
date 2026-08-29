@@ -1051,13 +1051,39 @@
 /* ─── Right-side Output Panel ─── */
 
 .output-panel {
-  width: 840px;
-  min-width: 640px;
-  border-left: 1px solid var(--border);
+  /* Width is set inline from React state (draggable via .output-panel-splitter,
+     persisted in localStorage) — no fixed width here so the two never fight. */
+  flex-shrink: 0;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Drag handle between the chat and the output panel. A dedicated hit area
+   rather than a border, so it's wide enough to grab without being visually
+   heavy — the visible line is a thin inset, the clickable strip is wider. */
+.output-panel-splitter {
+  flex-shrink: 0;
+  width: 5px;
+  margin: 0 -2px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  z-index: 1;
+}
+
+.output-panel-splitter::before {
+  content: "";
+  position: absolute;
+  inset: 0 2px;
+  background: var(--border);
+  transition: background 0.15s;
+}
+
+.output-panel-splitter:hover::before,
+.output-panel-splitter.active::before {
+  background: var(--accent);
 }
 
 .output-panel-header {
@@ -1941,5 +1967,19 @@
   background: var(--tertiary-light);
   padding: 1px 7px;
   border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+/* Text came from OCR, not a native text layer — flags lower-confidence passages. */
+.ocr-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: var(--warning-light);
+  color: var(--accent-deep);
   flex-shrink: 0;
 }

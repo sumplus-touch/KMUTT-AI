@@ -3,6 +3,7 @@ import path from "path";
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 import * as XLSX from "xlsx";
+import { ocrPdf } from "./ocr";
 
 /**
  * Read a PDF's text, page by page.
@@ -85,7 +86,12 @@ export interface ExtractedText {
    * Lets chunks carry a page number so citations can point at one.
    */
   pageTexts?: string[];
+  /** True when `text` came from OCR rather than the PDF's own text layer. */
+  ocr?: boolean;
 }
+
+/** Below this, a PDF's own text layer counts as empty — try OCR instead. */
+const MIN_NATIVE_TEXT_CHARS = 20;
 
 /**
  * Render a document to HTML for the preview panel.
@@ -149,7 +155,23 @@ export async function extractText(absPath: string): Promise<ExtractedText> {
 
   if (ext === ".pdf") {
     const { pages, total } = await readPdfPages(absPath);
-    return { text: pages.join("\n\n").trim(), type: "pdf", pages: total, pageTexts: pages };
+    const text = pages.join("\n\n").trim();
+    if (text.length >= MIN_NATIVE_TEXT_CHARS) {
+      return { text, type: "pdf", pages: total, pageTexts: pages };
+    }
+    // Empty text layer — this is very likely a scanned/image-only PDF.
+    // Fall back to OCR; if that also comes up empty (or the toolchain isn't
+    // installed), return the original empty result so the caller's existing
+    // "no text could be extracted" handling still applies.
+    try {
+      const ocr = await ocrPdf(absPath);
+      if (ocr.text.length >= MIN_NATIVE_TEXT_CHARS) {
+        return { text: ocr.text, type: "pdf", pages: total || ocr.pageTexts.length, pageTexts: ocr.pageTexts, ocr: true };
+      }
+    } catch (err) {
+      console.log(`extract OCR fallback failed for ${path.basename(absPath)}: ${(err as Error).message}`);
+    }
+    return { text, type: "pdf", pages: total, pageTexts: pages };
   }
 
   if (ext === ".docx" || ext === ".doc") {

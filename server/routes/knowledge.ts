@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import AdmZip from "adm-zip";
 import { validatePath } from "../services/sandbox";
+import { ocrAvailable } from "../services/ocr";
 import { extractText, chunkText, chunkPages, mapLegacyChunksToPages, isIndexable, INDEXABLE_EXTENSIONS } from "../services/extract";
 import {
   upsertDocument,
@@ -20,9 +21,11 @@ import { getKnowledgeDocs, saveKnowledgeDocs, KnowledgeDoc } from "../services/d
 
 /**
  * A document whose extracted text is shorter than this is treated as a failed
- * extraction rather than indexed. The usual cause is a scanned/image-only PDF:
- * pdf-parse has no OCR, so it returns an empty string and we would otherwise
- * store a document the model can never retrieve anything useful from.
+ * extraction rather than indexed. extractText() already tries OCR on a PDF
+ * with an empty text layer (see extract.ts); this only fires when that also
+ * came up empty — e.g. OCR isn't installed, or the scan is unreadable — and
+ * we would otherwise store a document the model can never retrieve anything
+ * useful from.
  */
 const MIN_EXTRACTABLE_CHARS = 20;
 
@@ -38,7 +41,7 @@ async function indexDocument(doc: KnowledgeDoc, absPath: string): Promise<Knowle
       doc.status = "failed";
       doc.error =
         extracted.type === "pdf"
-          ? "No text could be extracted. This looks like a scanned PDF — text-layer extraction has no OCR, so it cannot be indexed."
+          ? "No text could be extracted. This looks like a scanned PDF, and OCR could not recover usable text either — it cannot be indexed."
           : "No text could be extracted from this file.";
       doc.chunkCount = 0;
       // Drop anything a previous successful index left behind.
@@ -60,6 +63,7 @@ async function indexDocument(doc: KnowledgeDoc, absPath: string): Promise<Knowle
       fileType: extracted.type,
       access: doc.access,
       uploadedAt: doc.uploadedAt,
+      ocr: Boolean(extracted.ocr),
     };
 
     await upsertDocument(doc.id, chunks, metadata, previousChunkCount);
@@ -68,6 +72,7 @@ async function indexDocument(doc: KnowledgeDoc, absPath: string): Promise<Knowle
     doc.chunkCount = chunks.length;
     doc.status = "indexed";
     doc.indexedAt = new Date().toISOString();
+    doc.ocr = Boolean(extracted.ocr);
     delete doc.error;
   } catch (err: any) {
     doc.status = "failed";
@@ -85,11 +90,12 @@ export async function knowledgeRoutes(fastify: FastifyInstance) {
   /** Configuration + index health. */
   fastify.get("/status", async () => {
     const ready = await isKnowledgeBaseReady();
+    const ocr = await ocrAvailable().catch(() => false);
     if (!ready) {
-      return { ready: false, configured: false, error: "Knowledge base disabled or Pinecone API key missing" };
+      return { ready: false, configured: false, error: "Knowledge base disabled or Pinecone API key missing", ocrAvailable: ocr };
     }
     const stats = await getIndexStats();
-    return { ready: stats.ok, configured: true, ...stats };
+    return { ready: stats.ok, configured: true, ocrAvailable: ocr, ...stats };
   });
 
   /** Create the Pinecone index. Idempotent. */

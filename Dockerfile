@@ -23,7 +23,11 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Install Python3 and required system libraries
+# tesseract-ocr + the Thai model + poppler-utils (pdftoppm) back the OCR
+# fallback in server/services/ocr.ts — a scanned PDF has no text layer for
+# pdf-parse to read, so extract.ts renders its pages and OCRs them instead.
 RUN apk add --no-cache python3 py3-pip py3-numpy py3-pillow \
+       tesseract-ocr tesseract-ocr-data-tha tesseract-ocr-data-eng poppler-utils \
     && python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir \
        matplotlib pandas openpyxl python-docx scipy seaborn

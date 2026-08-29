@@ -20,6 +20,8 @@ interface KnowledgeDoc {
   indexedAt?: string;
   /** Server-computed: the source file is no longer in the workspace. */
   fileMissing?: boolean;
+  /** True when this document's text came from OCR rather than a native text layer. */
+  ocr?: boolean;
 }
 
 interface Hit {
@@ -28,6 +30,7 @@ interface Hit {
   text: string;
   title?: string;
   category?: string;
+  ocr?: boolean;
   fileName?: string;
   chunkIndex?: number;
 }
@@ -556,6 +559,7 @@ export default function KnowledgePage() {
                     <span className="kb-result-meta">
                       {h.category && <span className="chip">{categoryLabel(normaliseCategory(h.category || "other"))}</span>}
                       {typeof h.chunkIndex === "number" && <span className="kb-chunk">chunk {h.chunkIndex}</span>}
+                      {h.ocr && <span className="ocr-badge" title="This passage was read with OCR, not a native text layer — accuracy may be lower">OCR</span>}
                     </span>
                   </div>
                   <span className="chip-citation kb-score">{(h.score * 100).toFixed(0)}%</span>
@@ -642,6 +646,7 @@ export default function KnowledgePage() {
                     <div className="kb-doc-title">
                       {d.title}
                       <span className={`status-badge ${d.status === "indexed" ? "active" : "inactive"}`}>{d.status}</span>
+                      {d.ocr && <span className="ocr-badge" title="Indexed with OCR, not a native text layer — accuracy may be lower">OCR</span>}
                       {d.fileMissing && (
                         <span className="status-badge missing" title="Source file not found in the workspace">
                           file missing

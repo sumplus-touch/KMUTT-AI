@@ -7,7 +7,6 @@ import "./Layout.css";
 // Projects / Files / Skills are intentionally not listed. Their routes still
 // work if you navigate to them directly — only the sidebar links are hidden.
 const NAV_ITEMS = [
-  { path: "/", label: "Chat", icon: "chat" },
   { path: "/knowledge", label: "Knowledge Base", icon: "library" },
   { path: "/tasks", label: "Tasks", icon: "schedule" },
 ];

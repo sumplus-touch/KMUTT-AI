@@ -8,6 +8,8 @@ export interface CitedSource {
   fileName?: string;
   category?: string;
   page?: number;
+  /** True when this passage's text came from OCR rather than a native text layer. */
+  ocr?: boolean;
   score: number;
   hits: number;
   excerpt: string;
@@ -122,6 +124,9 @@ export function SourceViewer({
               {` · ${Math.round((source.score || 0) * 100)}% match`}
             </span>
           </div>
+          {source.ocr && (
+            <span className="ocr-badge" title="This document was read with OCR, not a native text layer — accuracy may be lower">OCR</span>
+          )}
           {!missing && filePath && (
             <a className="srcv-dl" href={api.downloadUrl(filePath)} download title="Download the original file">
               Download

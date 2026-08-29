@@ -43,6 +43,8 @@ export interface ChatSession {
       category?: string;
       /** 1-based page/sheet the passage came from. */
       page?: number;
+      /** True when this passage's text came from OCR rather than a native text layer. */
+      ocr?: boolean;
       score: number;
       hits: number;
       excerpt: string;
@@ -244,6 +246,8 @@ export interface KnowledgeDoc {
   error?: string;
   uploadedAt: string;
   indexedAt?: string;
+  /** True when this document's text came from OCR rather than a native text layer. */
+  ocr?: boolean;
 }
 
 export async function getKnowledgeDocs(): Promise<KnowledgeDoc[]> {

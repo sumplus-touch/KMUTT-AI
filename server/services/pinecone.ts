@@ -52,6 +52,8 @@ export interface KnowledgeHit {
   chunkIndex?: number;
   /** 1-based page/sheet the passage came from, when the format has pages. */
   page?: number;
+  /** True when this chunk's text came from OCR rather than a native text layer. */
+  ocr?: boolean;
 }
 
 /** Metadata carried on every chunk. Kept flat — Pinecone allows only scalars and string lists. */
@@ -63,6 +65,8 @@ export interface ChunkMetadata {
   fileType: string;
   access: string;
   uploadedAt: string;
+  /** True when this document's text came from OCR rather than a native text layer. */
+  ocr: boolean;
 }
 
 export async function getPineconeConfig(): Promise<PineconeConfig> {
@@ -212,7 +216,7 @@ export async function searchKnowledge(
       inputs: { text: query },
       ...(filter ? { filter } : {}),
     },
-    fields: [TEXT_FIELD, "docId", "title", "category", "fileName", "chunkIndex", "page"],
+    fields: [TEXT_FIELD, "docId", "title", "category", "fileName", "chunkIndex", "page", "ocr"],
   });
 
   return (res.result?.hits ?? []).map((hit) => {
@@ -227,6 +231,7 @@ export async function searchKnowledge(
       fileName: f.fileName,
       chunkIndex: typeof f.chunkIndex === "number" ? f.chunkIndex : undefined,
       page: typeof f.page === "number" ? f.page : undefined,
+      ocr: f.ocr === true,
     };
   });
 }

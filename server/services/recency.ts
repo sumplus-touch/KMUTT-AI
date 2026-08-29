@@ -15,6 +15,18 @@
 const EDITION_WORDS = /^(updated|update|final|revised|rev|new|copy|draft|v\d*|r|th|en|inter)$/i;
 
 /**
+ * Thai revision/edition phrases — the equivalent of EDITION_WORDS, but these
+ * can't be matched as whole tokens: Thai has no spaces between words, so
+ * "ฉบับเปลี่ยนแปลง" ("revised edition") sits fused inside one long token
+ * along with the rest of the title, not as its own word. Stripped as
+ * substrings, before tokenizing, the same way "(...)" already is below.
+ *   ฉบับที่N / ฉบับแก้ไขครั้งที่N — "edition/revision no. N"
+ *   ฉบับเปลี่ยนแปลง, ฉบับปรับปรุง  — "revised/amended edition"
+ *   แก้ไขเพิ่มเติม, เพิ่มเติม       — "amended", "supplement/additional"
+ */
+const THAI_EDITION_PHRASES = /ฉบับแก้ไขครั้งที่\s*\d*|ฉบับที่\s*\d+|ฉบับเปลี่ยนแปลง|ฉบับปรับปรุง|แก้ไขเพิ่มเติม|เพิ่มเติม/g;
+
+/**
  * 4-digit years, Gregorian or Buddhist era.
  *
  * Lookarounds rather than \b: these names run the year straight onto a word
@@ -59,9 +71,12 @@ export function editionYear(...names: Array<string | undefined>): number {
 export function familyKey(...names: Array<string | undefined>): string {
   const raw = (names.find(Boolean) || "").toString();
   const withoutExt = raw.replace(/\.[a-z0-9]{1,5}$/i, "");
-  // "(1)", "(2)" are copy markers, never the document's identity.
-  const noCopies = withoutExt.replace(/\([^)]*\)/g, " ");
-  const noYears = noCopies.replace(YEAR, " ");
+  // "(1)", "(2)" are copy markers, never the document's identity; so is a
+  // trailing "[2569M-logistic]" internal reference code some titles carry
+  // alongside an otherwise-identical descriptive name.
+  const noCopies = withoutExt.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
+  const noEditionPhrases = noCopies.replace(THAI_EDITION_PHRASES, " ");
+  const noYears = noEditionPhrases.replace(YEAR, " ");
 
   const tokens = noYears
     .toLowerCase()

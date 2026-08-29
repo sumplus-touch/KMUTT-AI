@@ -737,11 +737,20 @@ async function searchKnowledgeBaseTool_impl(args: { query: string; topK?: number
   const filter = args.category ? { category: { $eq: args.category } } : undefined;
 
   try {
-    const raw = await searchKnowledge(query, topK, filter);
+    // Fetch a wider net than requested before deduping by edition. The
+    // corpus carries a decade-plus of near-identical calendars/forms, so a
+    // generic query can rank several OLD editions above the current one on
+    // text similarity alone — keepNewestPerFamily can only promote the
+    // newest edition it actually SEES, so it needs more candidates than the
+    // caller asked for to have a real chance of including it. Sliced back
+    // down to `topK` after deduping, so the final answer still gets exactly
+    // what it requested, just correctly picked.
+    const overfetch = Math.min(topK * 4, 60);
+    const raw = await searchKnowledge(query, overfetch, filter);
     // Same form or calendar across many years counts as one source: keep the
     // newest edition so the answer cites the current version, not a decade of
     // near-identical revisions.
-    const hits = keepNewestPerFamily(raw);
+    const hits = keepNewestPerFamily(raw).slice(0, topK);
     if (hits.length === 0) {
       return {
         ok: true,
@@ -776,6 +785,7 @@ async function searchKnowledgeBaseTool_impl(args: { query: string; topK?: number
         title: h.title || h.fileName || "Untitled",
         category: h.category,
         page: h.page,
+        ocr: h.ocr,
         score: Number(h.score?.toFixed(4)),
         excerpt: h.text,
         source: h.fileName,

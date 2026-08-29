@@ -44,6 +44,8 @@ export interface KbStatus {
   totalRecords?: number;
   namespaceRecords?: number;
   error?: string;
+  /** Whether the server can OCR scanned PDFs (tesseract + poppler installed). */
+  ocrAvailable?: boolean;
 }
 
 /** Thrown with a machine-readable code so messages can map to a help page. */

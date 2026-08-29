@@ -46,6 +46,13 @@ export async function doctor(opts: { json?: boolean }) {
         checks.push({ label: "Knowledge base", ok: false, detail: st.error || "not connected" });
         failure = failure ?? en.KB_NOT_CONNECTED();
       }
+      // OCR fallback for scanned PDFs — a server-side toolchain check, not
+      // something the CLI can install; just says whether it's there.
+      checks.push({
+        label: "OCR (scanned PDFs)",
+        ok: Boolean(st.ocrAvailable),
+        detail: st.ocrAvailable ? "tesseract + poppler installed" : "not installed — scanned PDFs will fail to index",
+      });
     } catch {
       checks.push({ label: "Knowledge base", ok: false, detail: "not connected" });
       failure = failure ?? en.KB_NOT_CONNECTED();

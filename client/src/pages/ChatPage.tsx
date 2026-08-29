@@ -11,6 +11,11 @@ import ReactComponentRenderer from "../components/ReactComponentRenderer";
 import { SourceViewer, useResolvedDocs } from "../components/SourceViewer";
 import "./ChatPage.css";
 
+/** Output panel width — draggable via the splitter, persisted across reloads. */
+const DEFAULT_OUTPUT_WIDTH = 480;
+const MIN_OUTPUT_WIDTH = 320;
+const MAX_OUTPUT_WIDTH = 900;
+
 /** Assistant avatar glyph — matches the reference's robot mark. */
 function BotGlyph() {
   return (
@@ -37,6 +42,8 @@ interface KbSource {
   category?: string;
   /** 1-based page/sheet the passage came from. */
   page?: number;
+  /** True when this passage's text came from OCR rather than a native text layer. */
+  ocr?: boolean;
   score: number;
   hits: number;
   excerpt: string;
@@ -136,6 +143,7 @@ function SourceBox({
                     )}
                   </span>
                   {typeof src.page === "number" && <span className="source-page">p.{src.page}</span>}
+                  {src.ocr && <span className="ocr-badge" title="This passage was read with OCR, not a native text layer — accuracy may be lower">OCR</span>}
                   {unavailable && <span className="source-warn" title="File not on this server">!</span>}
                   <span className="source-score">{Math.round((src.score || 0) * 100)}%</span>
                 </button>
@@ -529,6 +537,20 @@ export default function ChatPage() {
   // it open meant every chat began with a panel the user had to dismiss.
   // The toggle button is always visible, and real output auto-opens it.
   const [outputPanelOpen, setOutputPanelOpen] = useState(false);
+  const [outputPanelWidth, setOutputPanelWidth] = useState(() => {
+    try {
+      const saved = parseInt(localStorage.getItem("kmutt-output-width") || "", 10);
+      if (Number.isFinite(saved)) return Math.min(MAX_OUTPUT_WIDTH, Math.max(MIN_OUTPUT_WIDTH, saved));
+    } catch { /* localStorage unavailable — fall back to default */ }
+    return DEFAULT_OUTPUT_WIDTH;
+  });
+  const [resizingOutput, setResizingOutput] = useState(false);
+  const outputPanelRef = useRef<HTMLDivElement>(null);
+  // Below 1024px the panel switches to a full-width stacked layout (CSS
+  // media query). An inline width style would out-rank that rule — inline
+  // styles beat any class, media-query or not — so the custom width only
+  // applies once there's room for a genuine side panel.
+  const [resizableWidth, setResizableWidth] = useState(() => window.innerWidth > 1024);
   const [mobileSidebar, setMobileSidebar] = useState(false);
   const [activeTaskSessions, setActiveTaskSessions] = useState<Set<string>>(new Set());
   const [outputRefreshKey, setOutputRefreshKey] = useState(0);
@@ -545,6 +567,44 @@ export default function ChatPage() {
     return acc;
   }, []);
   const outputFileCount = allOutputFiles.reduce((n, g) => n + g.files.length, 0);
+
+  const startOutputResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setResizingOutput(true);
+  };
+
+  // Drag-to-resize: computed from the panel's own right edge rather than the
+  // splitter's position, so the math holds regardless of sidebar width.
+  useEffect(() => {
+    if (!resizingOutput) return;
+    const onMove = (e: MouseEvent) => {
+      const rect = outputPanelRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const next = Math.min(MAX_OUTPUT_WIDTH, Math.max(MIN_OUTPUT_WIDTH, rect.right - e.clientX));
+      setOutputPanelWidth(next);
+    };
+    const onUp = () => setResizingOutput(false);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [resizingOutput]);
+
+  useEffect(() => {
+    try { localStorage.setItem("kmutt-output-width", String(outputPanelWidth)); } catch { /* best-effort */ }
+  }, [outputPanelWidth]);
+
+  useEffect(() => {
+    const onResize = () => setResizableWidth(window.innerWidth > 1024);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     refreshSessions().then((s) => {
@@ -790,9 +850,14 @@ export default function ChatPage() {
         // Orchestrator finished — refresh messages and output files
         if (data.sessionId === activeSession && activeSession) {
           api.getSession(activeSession).then((session: any) => {
-            applyServerMessages(session.messages || []);
+            const msgs = session.messages || [];
+            applyServerMessages(msgs);
             setOutputRefreshKey((k) => k + 1); // force output panel re-render
-            setOutputPanelOpen(true); // auto-open output panel if files exist
+            // Only pop the panel open when THIS turn actually produced a
+            // file — not on every answer, which was popping it open even for
+            // plain-text replies with nothing to show.
+            const last = msgs[msgs.length - 1];
+            if (last?.files?.length > 0) setOutputPanelOpen(true);
           });
           setStatus("Job complete");
           setTimeout(() => setStatus(""), 3000);
@@ -1160,7 +1225,24 @@ export default function ChatPage() {
       {/* Output panel — the toggle is always present, so the panel is
           discoverable even before a chat has produced anything. */}
       {outputPanelOpen && (
-        <div className="output-panel">
+        <>
+          {resizableWidth && (
+            <div
+              className={`output-panel-splitter ${resizingOutput ? "active" : ""}`}
+              onMouseDown={startOutputResize}
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize output panel"
+              aria-valuenow={outputPanelWidth}
+              aria-valuemin={MIN_OUTPUT_WIDTH}
+              aria-valuemax={MAX_OUTPUT_WIDTH}
+            />
+          )}
+          <div
+            className="output-panel"
+            ref={outputPanelRef}
+            style={resizableWidth ? { width: outputPanelWidth } : undefined}
+          >
           <div className="output-panel-header">
             <h3>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -1188,7 +1270,8 @@ export default function ChatPage() {
               ))
             )}
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Always available, even with nothing generated yet */}

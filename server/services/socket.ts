@@ -866,7 +866,7 @@ img.save('${tmpOut}', 'JPEG', quality=80)
           }
         }
 
-        const kbSources: Array<{ ref?: number; docId?: string; title: string; fileName?: string; category?: string; page?: number; score: number; hits: number; excerpt: string }> = [];
+        const kbSources: Array<{ ref?: number; docId?: string; title: string; fileName?: string; category?: string; page?: number; ocr?: boolean; score: number; hits: number; excerpt: string }> = [];
         const result = await callTigerBotWithTools(
           chatMessages,
           await buildSystemPrompt(),
@@ -932,6 +932,7 @@ img.save('${tmpOut}', 'JPEG', quality=80)
                     fileName: hit.source,
                     category: hit.category,
                     page: hit.page,
+                    ocr: hit.ocr,
                     score: hit.score || 0,
                     hits: 1,
                     excerpt: String(hit.excerpt || "").slice(0, 300),
