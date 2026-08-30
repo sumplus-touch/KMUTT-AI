@@ -3,7 +3,7 @@ import { v4 as uuid } from "uuid";
 import path from "path";
 import fs from "fs";
 import AdmZip from "adm-zip";
-import { validatePath } from "../services/sandbox";
+import { validatePath, safeDiskName } from "../services/sandbox";
 import { ocrAvailable } from "../services/ocr";
 import { extractText, chunkText, chunkPages, mapLegacyChunksToPages, isIndexable, INDEXABLE_EXTENSIONS } from "../services/extract";
 import {
@@ -250,6 +250,7 @@ export async function knowledgeRoutes(fastify: FastifyInstance) {
     fs.mkdirSync(destDir, { recursive: true });
 
     const extracted: Array<{ fileName: string; filePath: string; fileSize: number }> = [];
+    const usedDiskNames = new Set<string>();
     const skipped: Array<{ fileName: string; reason: string }> = [];
 
     for (const entry of entries) {
@@ -263,22 +264,27 @@ export async function knowledgeRoutes(fastify: FastifyInstance) {
         continue;
       }
 
-      // Dedupe against files already on disk and earlier entries in this zip.
-      let target = base;
+      // Long multi-byte names (Thai especially, 3 bytes/char) can exceed the
+      // filesystem's ~255-byte filename limit — write under a shortened name,
+      // but return the full original as fileName so the title built from it
+      // (titleFromFileName, client-side) isn't truncated too.
+      const diskBase = safeDiskName(base);
+
+      // Dedupe against files already on disk and earlier entries in this zip
+      // (checked against the disk name — that's what could actually collide).
+      let target = diskBase;
       let n = 1;
-      const ext = path.extname(base);
-      const stem = path.basename(base, ext);
-      while (
-        fs.existsSync(path.join(destDir, target)) ||
-        extracted.some((e) => e.fileName === target)
-      ) {
+      const ext = path.extname(diskBase);
+      const stem = path.basename(diskBase, ext);
+      while (fs.existsSync(path.join(destDir, target)) || usedDiskNames.has(target)) {
         target = `${stem}-${++n}${ext}`;
       }
+      usedDiskNames.add(target);
 
       try {
         const data = entry.getData();
         fs.writeFileSync(path.join(destDir, target), data);
-        extracted.push({ fileName: target, filePath: `${KB_SUBDIR}/${target}`, fileSize: data.length });
+        extracted.push({ fileName: base, filePath: `${KB_SUBDIR}/${target}`, fileSize: data.length });
       } catch (err: any) {
         skipped.push({ fileName: base, reason: err.message || "extraction failed" });
       }

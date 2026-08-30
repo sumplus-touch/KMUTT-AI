@@ -240,6 +240,9 @@ export default function KnowledgePage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [viewing, setViewing] = useState<KnowledgeDoc | null>(null);
   const [notice, setNotice] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
 
   // Add-document form. "single" keeps the original one-file/one-title flow;
   // "multiple" and "zip" both fan out into a batch — each file gets its title
@@ -464,6 +467,59 @@ export default function KnowledgePage() {
     ? docs.filter((d) => normaliseCategory(d.category) === activeCategory)
     : docs;
 
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allVisibleSelected = visibleDocs.length > 0 && visibleDocs.every((d) => selectedIds.has(d.id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      if (allVisibleSelected) {
+        // Deselect only what's currently in view — a category filter
+        // shouldn't silently drop a selection made under a different one.
+        const next = new Set(prev);
+        visibleDocs.forEach((d) => next.delete(d.id));
+        return next;
+      }
+      const next = new Set(prev);
+      visibleDocs.forEach((d) => next.add(d.id));
+      return next;
+    });
+  };
+
+  const deleteSelected = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} document${ids.length > 1 ? "s" : ""}? This removes their chunks from Pinecone and cannot be undone.`)) return;
+
+    setBulkDeleting(true);
+    setBulkProgress({ done: 0, total: ids.length });
+    let failed = 0;
+    for (let i = 0; i < ids.length; i++) {
+      try {
+        const res = await api.deleteKnowledgeDoc(ids[i]);
+        if (res.warning) failed++;
+      } catch {
+        failed++;
+      }
+      setBulkProgress({ done: i + 1, total: ids.length });
+    }
+    setNotice({
+      kind: failed === 0 ? "ok" : "error",
+      text: failed === 0 ? `Deleted ${ids.length} document${ids.length > 1 ? "s" : ""}.` : `Deleted ${ids.length - failed} of ${ids.length} — ${failed} had cleanup issues.`,
+    });
+    setSelectedIds(new Set());
+    setBulkDeleting(false);
+    setBulkProgress(null);
+    refresh();
+  };
+
   // The five well-known groups always show (even empty, as discoverable
   // upload targets); any category typed in via "+ New Category" earns its
   // own card here too instead of disappearing into "Other".
@@ -627,7 +683,35 @@ export default function KnowledgePage() {
         <section className="kb-section">
           <div className="kb-section-head">
             <h2>{activeCategory ? categoryLabel(activeCategory) : "All documents"}</h2>
+            {visibleDocs.length > 0 && (
+              <label className="kb-select-all">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleSelectAll}
+                  disabled={bulkDeleting}
+                />
+                Select all
+              </label>
+            )}
           </div>
+
+          {selectedIds.size > 0 && (
+            <div className="kb-bulkbar">
+              <span>{selectedIds.size} selected</span>
+              {bulkProgress ? (
+                <span className="kb-bulkbar-progress">Deleting {bulkProgress.done}/{bulkProgress.total}…</span>
+              ) : (
+                <>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setSelectedIds(new Set())}>Clear</button>
+                  <button className="btn btn-danger btn-sm" onClick={deleteSelected} disabled={bulkDeleting}>
+                    <KbIcon name="trash" size={14} /> Delete selected
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {visibleDocs.length === 0 ? (
             <div className="empty-state">
               No documents yet. Use <strong>Add Document</strong> to upload a PDF, Word, Excel, or text file.
@@ -637,10 +721,19 @@ export default function KnowledgePage() {
               {visibleDocs.map((d) => (
                 <div
                   key={d.id}
-                  className="kb-doc-row clickable"
+                  className={`kb-doc-row clickable ${selectedIds.has(d.id) ? "selected" : ""}`}
                   onClick={() => setViewing(d)}
                   title="Open document"
                 >
+                  <input
+                    type="checkbox"
+                    className="kb-doc-checkbox"
+                    checked={selectedIds.has(d.id)}
+                    onChange={() => toggleSelected(d.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={bulkDeleting}
+                    aria-label={`Select ${d.title}`}
+                  />
                   <span className={`kb-file-badge ${d.fileType}`}><KbIcon name="doc" size={18} /></span>
                   <div className="kb-doc-info">
                     <div className="kb-doc-title">

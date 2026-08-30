@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { listFiles, readFile, writeFile, deleteFile, validatePath } from "../services/sandbox";
+import { listFiles, readFile, writeFile, deleteFile, validatePath, safeDiskName } from "../services/sandbox";
 import multipart from "@fastify/multipart";
 import path from "path";
 import fs from "fs";
@@ -81,7 +81,11 @@ export async function filesRoutes(fastify: FastifyInstance) {
       if (!data) { reply.code(400); return { error: "No file" }; }
 
       const buffer = await data.toBuffer();
-      const originalname = data.filename;
+      // Long multi-byte titles (Thai especially, 3 bytes/char) can exceed the
+      // filesystem's ~255-byte filename limit even though they look like a
+      // normal-length title — truncate the name actually written to disk,
+      // never the title shown to the user (that's a separate field, untouched).
+      const originalname = safeDiskName(data.filename);
 
       // Extract path field from multipart fields
       const pathField = data.fields?.path as any;
@@ -114,7 +118,10 @@ export async function filesRoutes(fastify: FastifyInstance) {
         }
 
         const buffer = await part.toBuffer();
-        const safeName = part.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+        // ASCII-only replacement already keeps this well under the byte
+        // limit in practice, but safeDiskName is cheap insurance against an
+        // unusually long original name.
+        const safeName = safeDiskName(part.filename.replace(/[^a-zA-Z0-9._-]/g, "_"));
         const destName = `${Date.now()}_${safeName}`;
         const destPath = path.join(uploadsDir, destName);
         fs.writeFileSync(destPath, buffer);

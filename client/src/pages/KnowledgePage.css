@@ -372,6 +372,61 @@
 .kb-doc-row.clickable { cursor: pointer; }
 .kb-doc-row.clickable:hover .kb-doc-title { color: var(--accent-deep); }
 
+.kb-doc-row.selected {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+
+.kb-doc-checkbox {
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* "Select all" — sits opposite the section heading, same row. */
+.kb-select-all {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.kb-select-all input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Bulk-action bar — appears the moment anything is checked. */
+.kb-bulkbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  margin-bottom: 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--accent-light);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-deep);
+}
+
+.kb-bulkbar .btn-ghost.btn-sm { margin-left: auto; }
+
+.kb-bulkbar-progress {
+  margin-left: auto;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
 /* ─── Document viewer ─── */
 .kb-viewer {
   background: var(--bg-primary);

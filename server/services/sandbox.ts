@@ -2,6 +2,36 @@ import path from "path";
 import fs from "fs/promises";
 import fsSync from "fs";
 
+/**
+ * A safe filename for disk.
+ *
+ * Most filesystems (ext4 included — what every Docker volume here sits on)
+ * cap a filename at 255 BYTES, not 255 characters. Thai text is 3 bytes per
+ * character, so a perfectly normal-looking title — "ค่าบำรุง-ค่าธรรมเนียม
+ * การศึกษา - ภาควิชา..." — can silently blow past that and throw
+ * ENAMETOOLONG the moment anyone uploads it, with no length limit visible
+ * anywhere in the UI to explain why.
+ *
+ * Deterministic: the same long name always truncates to the same disk name,
+ * so re-uploading the same file still overwrites it in place rather than
+ * piling up copies, matching how a short filename already behaves.
+ */
+export function safeDiskName(originalName: string, maxStemBytes = 150): string {
+  const ext = path.extname(originalName);
+  const stem = originalName.slice(0, originalName.length - ext.length);
+  if (Buffer.byteLength(stem, "utf-8") <= maxStemBytes) return originalName;
+
+  let hash = 0;
+  for (let i = 0; i < originalName.length; i++) hash = (hash * 31 + originalName.charCodeAt(i)) >>> 0;
+  const suffix = "-" + hash.toString(16).padStart(8, "0");
+
+  const budget = Math.max(0, maxStemBytes - Buffer.byteLength(suffix, "utf-8"));
+  let truncated = Buffer.from(stem, "utf-8").subarray(0, budget).toString("utf-8");
+  // Truncating mid-character leaves a replacement char at the cut point — drop it.
+  truncated = truncated.replace(/�+$/, "");
+  return truncated + suffix + ext;
+}
+
 export function validatePath(sandboxDir: string, requestedPath: string): string {
   const resolved = path.resolve(sandboxDir, requestedPath);
   const root = path.resolve(sandboxDir);
