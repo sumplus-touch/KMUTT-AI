@@ -256,9 +256,17 @@ async function start() {
         throw new Error("Unauthorized — invalid or missing file access token");
       });
 
+      // no-cache (revalidate, don't blindly reuse) lets the client keep sandbox
+      // URLs stable across renders instead of appending a timestamp: a preview
+      // that is still current stays put — scroll position and all — while a
+      // regenerated file is picked up on the next load.
       sandbox.register(fastifyStatic, {
         root: SANDBOX_DIR,
         prefix: "/",
+        cacheControl: false,
+        setHeaders: (res) => {
+          res.setHeader("Cache-Control", "no-cache, must-revalidate");
+        },
       });
 
       // Convert ENOENT errors to clean 404 responses

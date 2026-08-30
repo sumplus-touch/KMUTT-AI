@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -362,8 +362,25 @@ function MarkdownPreview({ file }: { file: string }) {
   );
 }
 
-function OutputCanvas({ files }: { files: string[] }) {
+/**
+ * Manual refresh for one preview. Previews no longer reload themselves on
+ * every render, so a file regenerated under the same name needs a nudge.
+ */
+function ReloadBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="canvas-dl-btn" onClick={onClick} title="Reload preview">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+    </button>
+  );
+}
+
+const OutputCanvas = React.memo(function OutputCanvas({ files }: { files: string[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Per-file reload counter, fed to sandboxUrl() as a version. It only changes
+  // when the user asks for a refresh, so iframes keep their scroll position
+  // through the re-renders that streaming chat responses cause.
+  const [reloads, setReloads] = useState<Record<string, number>>({});
+  const reload = (f: string) => setReloads((r) => ({ ...r, [f]: (r[f] || 0) + 1 }));
 
   const images = files.filter((f) => ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].includes(getFileExt(f)));
   const reactFiles = files.filter((f) => f.endsWith(".jsx.js"));
@@ -382,13 +399,14 @@ function OutputCanvas({ files }: { files: string[] }) {
           {images.map((f) => (
             <div key={f} className="canvas-image-wrap">
               <img
-                src={sandboxUrl(f, true)}
+                src={sandboxUrl(f, reloads[f])}
                 alt={f}
                 className={`canvas-image ${expanded === f ? "expanded" : ""}`}
                 onClick={() => setExpanded(expanded === f ? null : f)}
               />
               <div className="canvas-image-toolbar">
                 <span className="canvas-image-name">{f.split("/").pop()}</span>
+                <ReloadBtn onClick={() => reload(f)} />
                 <a href={api.downloadUrl(f)} download className="canvas-dl-btn" title="Download">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
                 </a>
@@ -403,12 +421,13 @@ function OutputCanvas({ files }: { files: string[] }) {
         <div key={f} className="canvas-react-wrap">
           <div className="canvas-html-header">
             <span>{f.split("/").pop()?.replace(".jsx.js", "")}</span>
+            <ReloadBtn onClick={() => reload(f)} />
             <a href={api.downloadUrl(f)} download className="canvas-dl-btn" title="Download source">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
             </a>
           </div>
           <div className="canvas-react-body">
-            <ReactComponentRenderer src={sandboxUrl(f, true)} />
+            <ReactComponentRenderer src={sandboxUrl(f, reloads[f])} />
           </div>
         </div>
       ))}
@@ -419,6 +438,7 @@ function OutputCanvas({ files }: { files: string[] }) {
           <div className="canvas-html-header">
             <span>{f.split("/").pop()}</span>
             <div style={{ display: "flex", gap: 6 }}>
+              <ReloadBtn onClick={() => reload(f)} />
               <a href={sandboxUrl(f)} target="_blank" rel="noreferrer" className="canvas-dl-btn" title="Open in new tab">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
               </a>
@@ -427,7 +447,7 @@ function OutputCanvas({ files }: { files: string[] }) {
               </a>
             </div>
           </div>
-          <iframe src={sandboxUrl(f, true)} className="canvas-html-iframe" title={f} />
+          <iframe src={sandboxUrl(f, reloads[f])} className="canvas-html-iframe" title={f} />
         </div>
       ))}
 
@@ -511,7 +531,7 @@ function OutputCanvas({ files }: { files: string[] }) {
       )}
     </div>
   );
-}
+});
 
 export default function ChatPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -553,19 +573,26 @@ export default function ChatPage() {
   const [resizableWidth, setResizableWidth] = useState(() => window.innerWidth > 1024);
   const [mobileSidebar, setMobileSidebar] = useState(false);
   const [activeTaskSessions, setActiveTaskSessions] = useState<Set<string>>(new Set());
-  const [outputRefreshKey, setOutputRefreshKey] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { connected, sendMessage, onChunk, onResponse, onStatus, onTitle } = useSocket();
 
-  // Collect all output files from messages for the right panel
-  const allOutputFiles = messages.reduce<{ files: string[]; msgIndex: number }[]>((acc, msg, i) => {
-    if (msg.files && msg.files.length > 0) {
-      acc.push({ files: msg.files, msgIndex: i });
-    }
-    return acc;
-  }, []);
+  // Collect all output files from messages for the right panel.
+  //
+  // Memoized so each group keeps its identity across re-renders: OutputCanvas
+  // is a React.memo, so an unchanged group does not re-render at all while
+  // chat responses stream in — which is what keeps iframe scroll position.
+  const allOutputFiles = useMemo(
+    () =>
+      messages.reduce<{ files: string[]; msgIndex: number }[]>((acc, msg, i) => {
+        if (msg.files && msg.files.length > 0) {
+          acc.push({ files: msg.files, msgIndex: i });
+        }
+        return acc;
+      }, []),
+    [messages]
+  );
   const outputFileCount = allOutputFiles.reduce((n, g) => n + g.files.length, 0);
 
   const startOutputResize = (e: React.MouseEvent) => {
@@ -764,9 +791,9 @@ export default function ChatPage() {
         // Refresh messages from server to get the complete history including the new response
         wasLoadingRef.current = false;
         api.getSession(activeSession).then((session: any) => {
+          // New files (images, PDFs) render as soon as the messages carrying
+          // them arrive — no forced remount, which would reset the panel.
           applyServerMessages(session.messages || []);
-          // Force output panel refresh so new files (images, PDFs) render immediately
-          setOutputRefreshKey((k) => k + 1);
         });
         setStreaming("");
         // Remove completed task from running set (will be refreshed by polling)
@@ -852,7 +879,6 @@ export default function ChatPage() {
           api.getSession(activeSession).then((session: any) => {
             const msgs = session.messages || [];
             applyServerMessages(msgs);
-            setOutputRefreshKey((k) => k + 1); // force output panel re-render
             // Only pop the panel open when THIS turn actually produced a
             // file — not on every answer, which was popping it open even for
             // plain-text replies with nothing to show.
@@ -1266,7 +1292,7 @@ export default function ChatPage() {
               </div>
             ) : (
               allOutputFiles.map((group, gi) => (
-                <OutputCanvas key={`${gi}-${outputRefreshKey}`} files={group.files} />
+                <OutputCanvas key={`${group.msgIndex}-${group.files[0]}`} files={group.files} />
               ))
             )}
           </div>
